@@ -8,10 +8,10 @@ extern "C" {
 #endif
 
 
-// #define ONLY_OPEN_LOOP
-#define FOC_SPEED_CONTROL
-// #define FOC_CLOSE_I_DEBUG
+#define FOC_CLOSE_LOOP_EN
+// #define FOC_SPEED_PI_EN
 #define FOC_PLL_ENABLE                      // 使能锁相环
+#define FOC_CLOSE_I_DEBUG_EN
 // #define FW_ENABLE                           // 使能弱磁
 
 
@@ -46,8 +46,10 @@ extern "C" {
 // 电机通用参数（根据电机修改）
 #define POLE_PAIRS              7.0f            // 电机极对数（示例：7对极）
 #define CURRENT_LIMIT           20.0f           // 最大相电流(A)
-#define MOTOR_R                 0.222261666f      // 相电阻 (Ohm)
-#define MOTOR_L                 0.0000897929f   // 相电感 (Henry)
+#define MOTOR_R                 0.095f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
+#define MOTOR_L_Q               0.000361353f   // Q轴电感 
+#define MOTOR_L_D               0.000335029f   // D轴电感 
+#define MOTOR_L                 0.000348191f    // 相电感 (Henry)
 #define MAX_MOTOR_NUM           2               // 最大电机数量
 
 // PLL参数
