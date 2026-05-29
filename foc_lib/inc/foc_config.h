@@ -9,9 +9,9 @@ extern "C" {
 
 
 #define FOC_CLOSE_LOOP_EN
-// #define FOC_SPEED_PI_EN
+#define FOC_SPEED_PI_EN
 #define FOC_PLL_ENABLE                      // 使能锁相环
-#define FOC_CLOSE_I_DEBUG_EN
+// #define FOC_CLOSE_I_DEBUG_EN
 // #define FW_ENABLE                           // 使能弱磁
 
 
@@ -73,6 +73,11 @@ extern "C" {
 #define PI_KP_SPEED             0.005f         // 速度PI比例系数
 #define PI_KI_SPEED             0.2f          // 速度PI积分系数
 #define PI_LIMIT_SPEED          14.0f           // 速度PI输出限幅
+#define PI_KP_POSITION          30.0f          // 位置PI比例系数(RPM/rad)
+#define PI_KI_POSITION          1.0f           // 位置PI积分系数(RPM/rad/s)
+#define PI_LIMIT_POSITION_RPM   100.0f         // 位置环输出速度限幅(RPM)
+#define POSITION_DEADBAND_RAD   0.03f          // 位置到位死区(rad)
+#define POSITION_OVERSPEED_RPM  600.0f         // 位置模式超速保护(RPM)
 
 // 速度定义（分离开环和闭环）
 // #define TARGET_SPEED            2000.0f         // 闭环最终目标(RPM)

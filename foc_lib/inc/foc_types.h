@@ -28,6 +28,11 @@ typedef enum {
     MOTOR_STATE_CLOSE      // 闭环运行
 } foc_mode_t;
 
+typedef enum {
+    FOC_CONTROL_SPEED = 0,
+    FOC_CONTROL_POSITION
+} foc_control_mode_t;
+
 typedef enum
 {
     FOC_OK = 0,                 // 正常
@@ -100,6 +105,7 @@ typedef struct
     uint8_t                 num;                // 电机编号
 
     foc_mode_t              mode;               // 运行模式
+    foc_control_mode_t      control_mode;       // 控制模式
     foc_motor_params_t      motor;              // 电机参数
     foc_smo_t               smo;                // 滑膜观测器
     foc_pwm_t               pwm;                // PWM输出
@@ -118,6 +124,7 @@ typedef struct
     foc_pid_t               pi_d;               // d轴电流PI
     foc_pid_t               pi_q;               // q轴电流PI
     foc_pid_t               pi_speed;           // 速度PI
+    foc_pid_t               pi_position;        // 位置PI
     foc_pid_t               pi_pll;             // 锁相环PI
 
     uint16_t                i_adc_u;            // adc得到的三相电流
@@ -138,6 +145,11 @@ typedef struct
     float                   target_id;          // d轴电流目标值
     float                   target_speed;       // 电机目标速度
     float                   speed_ramp_target;  // 电机爬坡目标速度
+    float                   target_position;    // 电机目标机械位置(rad)
+    float                   position_raw;       // 未扣零点的累计机械位置(rad)
+    float                   position;           // 扣零后的累计机械位置(rad)
+    float                   position_offset;    // 位置零点偏移(rad)
+    float                   position_dir;       // 本次位置运动方向
 
     /*运行计数*/
     uint32_t                state_timer;         // 运行状态定时器
