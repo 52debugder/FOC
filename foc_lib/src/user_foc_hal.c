@@ -27,21 +27,84 @@
 #include "tim.h"
 #include "adc.h"
 
+#define FOC_ADC_TRIGGER_DELAY_TICKS 128U
+#define FOC_ADC_FILTER_WINDOW 3U
+
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim8;
 uint16_t adc1_buf[2] __attribute__((aligned(32)));
 uint16_t adc2_buf[2] __attribute__((aligned(32)));
+
+typedef struct
+{
+    uint16_t u[FOC_ADC_FILTER_WINDOW];
+    uint16_t w[FOC_ADC_FILTER_WINDOW];
+    uint8_t index;
+    uint8_t count;
+} foc_adc_filter_t;
+
+static foc_adc_filter_t adc_filter[3];
+
+static uint16_t foc_hal_median3_u16(uint16_t a, uint16_t b, uint16_t c)
+{
+    uint16_t temp;
+
+    if (a > b)
+    {
+        temp = a;
+        a = b;
+        b = temp;
+    }
+    if (b > c)
+    {
+        temp = b;
+        b = c;
+        c = temp;
+    }
+    if (a > b)
+    {
+        temp = a;
+        a = b;
+        b = temp;
+    }
+
+    return b;
+}
+
+static void foc_hal_adc_filter_sample(uint8_t num, uint16_t raw_u, uint16_t raw_w, uint16_t *adc_u, uint16_t *adc_w)
+{
+    foc_adc_filter_t *filter = &adc_filter[num];
+    uint8_t index = filter->index;
+
+    filter->u[index] = raw_u;
+    filter->w[index] = raw_w;
+    if (filter->count < FOC_ADC_FILTER_WINDOW)
+        filter->count++;
+    filter->index = (uint8_t)((index + 1U) % FOC_ADC_FILTER_WINDOW);
+
+    if (filter->count < FOC_ADC_FILTER_WINDOW)
+    {
+        *adc_u = raw_u;
+        *adc_w = raw_w;
+        return;
+    }
+
+    *adc_u = foc_hal_median3_u16(filter->u[0], filter->u[1], filter->u[2]);
+    *adc_w = foc_hal_median3_u16(filter->w[0], filter->w[1], filter->w[2]);
+}
 
 static void foc_hal_init(uint8_t num)
 {
     switch(num)
     {
         case 1:
+            adc_filter[1] = (foc_adc_filter_t){0};
             HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
             HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1_buf, sizeof(adc1_buf) / sizeof(adc1_buf[0])); // 启动ADC DMA采样
             HAL_TIM_Base_Start_IT(&htim8);// 启动定时器（FOC计算）
             break;
         case 2:
+            adc_filter[2] = (foc_adc_filter_t){0};
             HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
             HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2_buf, sizeof(adc2_buf) / sizeof(adc2_buf[0])); // 启动ADC DMA采样
             HAL_TIM_Base_Start_IT(&htim1);// 启动定时器（FOC计算）
@@ -78,7 +141,7 @@ static void foc_hal_tim_start(uint8_t num)
             HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_2);
             HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_3);
             HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_4);
-            __HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_4, 5495);
+            __HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim8) - FOC_ADC_TRIGGER_DELAY_TICKS);
             break;
         case 2:
             HAL_TIM_Base_MspInit(&htim1);
@@ -88,7 +151,7 @@ static void foc_hal_tim_start(uint8_t num)
             HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
             HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
             HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 5495);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim1) - FOC_ADC_TRIGGER_DELAY_TICKS);
             break;
     }
 }
@@ -126,15 +189,13 @@ static void foc_hal_adc_get_value(uint8_t num, uint16_t *adc_u, uint16_t *adc_v,
     {
         case 1:
             SCB_InvalidateDCache_by_Addr((uint32_t*)adc1_buf, sizeof(adc1_buf));
-            *adc_u = adc1_buf[1];
+            foc_hal_adc_filter_sample(num, adc1_buf[1], adc1_buf[0], adc_u, adc_w);
             *adc_v = 0;
-            *adc_w = adc1_buf[0];
             break;
         case 2:
             SCB_InvalidateDCache_by_Addr((uint32_t*)adc2_buf, sizeof(adc2_buf));
-            *adc_u = adc2_buf[1];
+            foc_hal_adc_filter_sample(num, adc2_buf[1], adc2_buf[0], adc_u, adc_w);
             *adc_v = 0;
-            *adc_w = adc2_buf[0];
             break;
     }
 }

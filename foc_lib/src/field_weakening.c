@@ -48,11 +48,11 @@ void FOC_FieldWeakening(foc_handle_t *motor, float dt)
     if (motor->id_fw < -FW_ID_MAX)
         motor->id_fw = -FW_ID_MAX;
 
-    // 限幅2：总电流圆限制 sqrt(id^2 + iq^2) < CURRENT_LIMIT
+    // 限幅2：总电流圆限制 sqrt(id^2 + iq^2) < CURRENT_TARGET_LIMIT
     // 保证 iq 优先，id 被圆限制
-    float iq_ref     = motor->pi_d.target;
+    float iq_ref     = motor->pi_q.target;
     float id_max_fw  = -sqrtf(fmaxf(0.0f,
-                         CURRENT_LIMIT * CURRENT_LIMIT - iq_ref * iq_ref));
+                         CURRENT_TARGET_LIMIT * CURRENT_TARGET_LIMIT - iq_ref * iq_ref));
     if (motor->id_fw < id_max_fw)
         motor->id_fw = id_max_fw;
 

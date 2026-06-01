@@ -153,6 +153,9 @@ int main(void)
   Foc_Init(2, &foc_hal); // 右边电机
 
   HAL_Delay(50);
+#ifdef HFI_ENABLE
+  Foc_HFI_Enable(2);
+#endif
 
   /* USER CODE END 2 */
 
@@ -172,13 +175,33 @@ int main(void)
     // Print3_Motor_To_VOFA(FOC_Motor[2].theta, FOC_Motor[2].theta_Observer, angle_error);
     // Print4_Motor_To_VOFA(FOC_Motor[2].theta, FOC_Motor[2].theta_Observer, FOC_Motor[2].speed_observer, angle_error);
     // Print4_Motor_To_VOFA(FOC_Motor[2].i_dq.d, FOC_Motor[2].i_dq.q, FOC_Motor[2].pi_q.output, FOC_Motor[2].speed);
-    Print4_Motor_To_VOFA(FOC_Motor[2].position, FOC_Motor[2].target_position, FOC_Motor[2].speed, FOC_Motor[2].speed_ramp_target);
+    // Print4_Motor_To_VOFA((float)FOC_Motor[2].hfi_enable, (float)FOC_Motor[2].hfi_warmup_cnt, FOC_Motor[2].hfi_v_inj, FOC_Motor[2].hfi_iq_hf);
+    // Print4_Motor_To_VOFA(FOC_Motor[2].position, FOC_Motor[2].target_position, FOC_Motor[2].speed, FOC_Motor[2].speed_ramp_target);
     // Print3_Motor_To_VOFA(FOC_Motor[2].speed, FOC_Motor[2].speed_observer, angle_error);
 
     // Print3_Motor_To_VOFA(FOC_Motor[2].speed, FOC_Motor[2].speed_ramp_target, FOC_Motor[2].pi_q.output);
     // Print3_Motor_To_VOFA(FOC_Motor[2].theta_Observer, FOC_Motor[2].theta, FOC_Motor[2].pi_q.target);
+  //   Print4_Motor_To_VOFA(
+  //     FOC_Motor[2].speed,
+
+  // FOC_Motor[2].speed_ramp_target,   
+  //     FOC_Motor[2].pi_q.target,     
+  //     FOC_Motor[2].pi_q.output      
+  // );
+
+  // Print4_Motor_To_VOFA(FOC_Motor[2].speed,FOC_Motor[2].pi_q.target,FOC_Motor[2].i_dq.q,FOC_Motor[2].pi_q.output);
+  Print4_Motor_To_VOFA(
+      FOC_Motor[2].speed,
+      FOC_Motor[2].i_dq.d,
+      FOC_Motor[2].i_dq.q,
+      angle_error
+  );
+  // Print4_Motor_To_VOFA(FOC_Motor[2].speed,FOC_Motor[2].i_dq.d,FOC_Motor[2].i_dq.q,angle_error);
+
     // Print3_Motor_To_VOFA(FOC_Motor[2].i_dq.q, FOC_Motor[2].pi_q.target, FOC_Motor[2].pi_q.output);
     // Print3_Motor_To_VOFA(FOC_Motor[2].i_dq.d, FOC_Motor[2].pi_d.target, FOC_Motor[2].pi_d.output);
+      // Print3_Motor_To_VOFA(FOC_Motor[2].i_adc_u,FOC_Motor[2].i_cali_uvw.u,FOC_Motor[2].i_adc_w);
+    // Print3_Motor_To_VOFA((float)((int32_t)FOC_Motor[2].i_adc_u - FOC_Motor[2].i_cali_uvw.u), (float)((int32_t)FOC_Motor[2].i_adc_w - FOC_Motor[2].i_cali_uvw.w), FOC_Motor[2].i_dq.d);
     // Print3_Motor_To_VOFA(FOC_Motor[2].i_adc_u, FOC_Motor[2].i_uvw.u, FOC_Motor[2].pi_q.target);
     // Print3_Motor_To_VOFA(FOC_Motor[2].i_ab_hat.alpha, FOC_Motor[2].i_ab_hat.beta, angle_error);
     // Print3_Motor_To_VOFA(FOC_Motor[2].u_dq.q, FOC_Motor[2].i_dq.q, FOC_Motor[2].speed);
@@ -207,6 +230,7 @@ int main(void)
     //                  FOC_Motor[2].speed,          // 转速
     //                  FOC_Motor[2].fw_active);     // 弱磁是否激活
 
+    // Foc_Set_Position(2, 0.0f);
     Foc_Set_Speed(2, 2000);
     // Print4_Motor_To_VOFA(FOC_Motor[2].position, FOC_Motor[2].target_position, FOC_Motor[2].speed, FOC_Motor[2].speed_ramp_target);
     // Foc_Set_Speed(1, 50);

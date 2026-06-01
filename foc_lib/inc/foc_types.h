@@ -14,6 +14,7 @@
 #define __FOC_TYPEDEF_H
 
 #include "stdint.h"
+#include "foc_config.h"
 #include "foc_hal.h"
 
 #ifdef __cplusplus
@@ -150,6 +151,23 @@ typedef struct
     float                   position;           // 扣零后的累计机械位置(rad)
     float                   position_offset;    // 位置零点偏移(rad)
     float                   position_dir;       // 本次位置运动方向
+
+#ifdef HFI_ENABLE
+    uint8_t                 hfi_enable;         // 高频注入使能
+    uint8_t                 hfi_valid;          // 高频注入角度有效
+    uint16_t                hfi_warmup_cnt;     // HFI滤波预热计数
+    float                   theta_hfi;          // HFI估计电角度(rad)
+    float                   theta_hfi_prev;     // HFI上一拍电角度(rad)
+    float                   speed_hfi_observer; // HFI估计电角速度(rad/s)
+    float                   hfi_pll_integral;   // HFI PLL积分项
+    float                   hfi_phase;          // 注入信号相位(rad)
+    float                   hfi_v_inj;          // 当前注入电压(V)
+    float                   hfi_iq_lpf;         // q轴低频电流估计
+    float                   hfi_iq_hf;          // q轴高频电流分量
+    float                   hfi_demod;          // 同步解调低通结果
+    float                   hfi_error;          // HFI角度误差
+    float                   hfi_blend;          // HFI角度权重
+#endif
 
     /*运行计数*/
     uint32_t                state_timer;         // 运行状态定时器

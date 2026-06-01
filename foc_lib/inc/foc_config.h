@@ -11,7 +11,9 @@ extern "C" {
 #define FOC_CLOSE_LOOP_EN
 #define FOC_SPEED_PI_EN
 #define FOC_PLL_ENABLE                      // 使能锁相环
+// #define HFI_ENABLE                          // 使能高频注入低速角度估计
 // #define FOC_CLOSE_I_DEBUG_EN
+// #define FOC_OPEN_I_DEBUG_EN
 // #define FW_ENABLE                           // 使能弱磁
 
 
@@ -25,31 +27,42 @@ extern "C" {
 
 // INA240参数   
 #define INA240_GAIN             50.0f           // INA240A2增益50V/V
-#define SAMPLE_RESISTOR         0.00148f        // 采样电阻A1mΩ
+#define SAMPLE_RESISTOR         0.001f         // 采样电阻1mΩ
+
+// 开环参数
+#define OPEN_LOOP_UQ            (PWM_VBUS * 0.65f) // 开环q轴强拉力度
 
 // 观测器参数   
-#define SMO_K                   4.0f            // 滑模增益 (根据实际效果调试)
+#define SMO_K                   15.0f            // 滑模增益 (根据实际效果调试)
 #define BEMF_LPF                0.1f           // 反电动势低通滤波系数
 #define SPEED_OBSERBER_LPF      0.1f           // 观测器求得的速度的低通滤波系数
 #define COMP                    0.0f            // 偏移量
 #define OB_SPEED_LIMIT          10000.0f         // 观测速度限幅
 #define PLL_INIT_LIMIT          1500.0f         // PLL积分限幅4,673.521850899743
-#define SAT_BOUNDARY            0.8f            // sat函数饱和边界   
+#define SAT_BOUNDARY            0.9f            // sat函数饱和边界
 
-// ===== 弱磁控制参数 =====
-#define CURRENT_PI_LIMIT        6.801f      // 电流环电压输出限幅（V），与PI limit一致
+// 弱磁控制参数
+#define CURRENT_PI_LIMIT        (PWM_VBUS * 0.95f / 1.732050807f) // 电流环电压输出限幅(V)
+#define CURRENT_REF_LIMIT       (CURRENT_PI_LIMIT * 0.85f / MOTOR_R) // 当前母线电压和相电阻下建议的电流指令上限(A)
+#define CURRENT_DEBUG_LIMIT     1.0f
+#define CURRENT_TARGET_LIMIT    ((CURRENT_REF_LIMIT < CURRENT_DEBUG_LIMIT) ? CURRENT_REF_LIMIT : CURRENT_DEBUG_LIMIT)
 #define FW_VOLTAGE_THRESHOLD    0.92f       // 触发弱磁的电压利用率（建议0.93~0.97）
 #define FW_KI                   1.0f       // 弱磁积分增益（越大响应越快，但可能振荡）
 #define FW_EXIT_RATE            0.3f        // 退出弱磁时id恢复速率倍数（相对FW_KI）
 #define FW_ID_MAX               8.0f        // 最大弱磁电流限幅（A），不超过 CURRENT_LIMIT/2
 
 // 电机通用参数（根据电机修改）
+// #define POLE_PAIRS              7.0f            // 电机极对数（示例：7对极）
+// #define CURRENT_LIMIT           20.0f           // 最大相电流(A)
+// #define MOTOR_R                 0.095f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
+// #define MOTOR_L_Q               0.000361353f   // Q轴电感
+// #define MOTOR_L_D               0.000335029f   // D轴电感
+// #define MOTOR_L                 0.000348191f    // 相电感 (Henry)
+// #define MAX_MOTOR_NUM           2               // 最大电机数量
 #define POLE_PAIRS              7.0f            // 电机极对数（示例：7对极）
 #define CURRENT_LIMIT           20.0f           // 最大相电流(A)
-#define MOTOR_R                 0.095f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
-#define MOTOR_L_Q               0.000361353f   // Q轴电感 
-#define MOTOR_L_D               0.000335029f   // D轴电感 
-#define MOTOR_L                 0.000348191f    // 相电感 (Henry)
+#define MOTOR_R                 2.55f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
+#define MOTOR_L                 0.00086f    // 相电感 (Henry)
 #define MAX_MOTOR_NUM           2               // 最大电机数量
 
 // PLL参数
@@ -58,26 +71,41 @@ extern "C" {
 #define BTN7960_DEAD_TIME_S     0.0000005f 
 
 // 电流环参数
-#define PI_KP_D                 0.56418f 
-#define PI_KI_D                 1396.511f   
-#define PI_KP_Q                 0.56418f 
-#define PI_KI_Q                 1396.511f
-// #define PI_KP_D                 0.11224f 
-// #define PI_KI_D                 277.827f   
-// #define PI_KP_Q                 0.11224f 
-// #define PI_KI_Q                 277.827f
-// #define PI_KP_D                 0.564f    // 2π*带宽*L = 2*3.14*1000*0.00008979
-// #define PI_KI_D                 2472.0f   // R/L = 0.222/0.00008979
-// #define PI_KP_Q                 0.564f 
-// #define PI_KI_Q                 2472.0f
-#define PI_KP_SPEED             0.005f         // 速度PI比例系数
-#define PI_KI_SPEED             0.2f          // 速度PI积分系数
-#define PI_LIMIT_SPEED          14.0f           // 速度PI输出限幅
+#define CURRENT_LOOP_BANDWIDTH_HZ 200.0f       // 电流环带宽
+#define CURRENT_LOOP_WC          (6.283185307f * CURRENT_LOOP_BANDWIDTH_HZ)
+#define CURRENT_LOOP_STEP_LOW_A  0.2f                           // 电流环阶跃响应的低响应
+#define CURRENT_LOOP_STEP_HIGH_A 0.6f                           // 电流环阶跃响应的高响应
+#define PI_KP_D                 (MOTOR_L * CURRENT_LOOP_WC)
+#define PI_KI_D                 (MOTOR_R * CURRENT_LOOP_WC)
+#define PI_KP_Q                 (MOTOR_L * CURRENT_LOOP_WC)
+#define PI_KI_Q                 (MOTOR_R * CURRENT_LOOP_WC)
+
+// 速度环参数
+#define PI_KP_SPEED             0.002f         // 速度PI比例系数
+#define PI_KI_SPEED             0.05f          // 速度PI积分系数
+#define PI_LIMIT_SPEED          CURRENT_TARGET_LIMIT // 速度PI输出限幅(A)
+
+// 位置环参数
 #define PI_KP_POSITION          30.0f          // 位置PI比例系数(RPM/rad)
 #define PI_KI_POSITION          1.0f           // 位置PI积分系数(RPM/rad/s)
 #define PI_LIMIT_POSITION_RPM   100.0f         // 位置环输出速度限幅(RPM)
 #define POSITION_DEADBAND_RAD   0.03f          // 位置到位死区(rad)
 #define POSITION_OVERSPEED_RPM  600.0f         // 位置模式超速保护(RPM)
+
+// 高频注入参数
+#define HFI_INJECTION_VOLTAGE   0.1f           // d轴高频注入电压(V)
+#define HFI_INJECTION_FREQ      800.0f         // 高频注入频率(Hz)
+#define HFI_IQ_LPF_ALPHA        0.05f          // q轴基波电流低通系数
+#define HFI_DEMOD_LPF_ALPHA     0.03f          // 同步解调低通系数
+#define HFI_PLL_KP              30.0f          // HFI角度PLL比例
+#define HFI_PLL_KI              200.0f         // HFI角度PLL积分
+#define HFI_PLL_LIMIT           120.0f         // HFI电角速度限幅(rad/s)
+#define HFI_USE_SPEED_RPM       120.0f         // 低于该速度优先使用HFI角度
+#define HFI_BLEND_END_RPM       250.0f         // 高于该速度回到SMO角度
+#define HFI_MIN_RESPONSE        0.002f         // HFI解调响应有效阈值
+#define HFI_WARMUP_CYCLES       1000           // HFI进入闭环后的滤波预热周期
+#define HFI_ERROR_SIGN          1.0f           // 若角度越调越偏，改为-1.0f
+#define HFI_IQ_HF_LIMIT         0.3f           // 高频电流保护阈值(A)
 
 // 速度定义（分离开环和闭环）
 // #define TARGET_SPEED            2000.0f         // 闭环最终目标(RPM)

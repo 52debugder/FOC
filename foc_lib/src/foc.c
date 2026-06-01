@@ -2,8 +2,8 @@
  * @file foc.c
  * @author MING
  * @brief foc调用库
- * @version 0.6
- * @date 2026-05-04
+ * @version 0.7
+ * @date 2026-06-01
  * 
  * @copyright Copyright (c) 2026
  * 
@@ -14,9 +14,15 @@
 foc_handle_t FOC_Motor[MAX_MOTOR_NUM + 1] = {0};
 uint32_t vofa_cnt = 0;
 
+/**
+ * @brief FOC位置环状态更新
+ * 
+ * @param motor 
+ */
 static void Foc_Update_Position(foc_handle_t *motor)
 {
-    float delta_e = motor->theta_Observer - motor->theta_obs_prev;
+    // 角度误差
+    float delta_e = motor->theta - motor->theta_obs_prev;
     if (delta_e > PI)
         delta_e -= _2_PI;
     else if (delta_e < -PI)
@@ -24,7 +30,7 @@ static void Foc_Update_Position(foc_handle_t *motor)
 
     motor->position_raw += delta_e / POLE_PAIRS;
     motor->position = motor->position_raw - motor->position_offset;
-    motor->theta_obs_prev = motor->theta_Observer;
+    motor->theta_obs_prev = motor->theta;
 }
 
 /**
@@ -97,9 +103,9 @@ foc_state_t Foc_ParamInit(foc_handle_t *motor, const foc_hal_t *hal_interface)
     motor->pwm = (foc_pwm_t){
         .duty_u = PWM_ARR / 2,
         .duty_v = PWM_ARR / 2,
-        .duty_w = PWM_ARR / 2,
-    };
+        .duty_w = PWM_ARR / 2,};
 
+    // 上一次ab轴电流
     motor->i_ab_pre = (foc_ab_t){
         .alpha = 0.0f,
         .beta = 0.0f};
@@ -116,23 +122,36 @@ foc_state_t Foc_ParamInit(foc_handle_t *motor, const foc_hal_t *hal_interface)
 
     motor->pi_pll.integral = 0.0f;
     motor->speed_observer = 0.0f;
-    motor->target_speed = 0.0f;
-    motor->theta = 0.0f; // 确保起始角度从0开始
     motor->theta_Observer = 0.0f;
     motor->theta_obs_prev = 0.0f;
+
+    motor->theta = 0.0f; 
+
+    motor->target_speed = 0.0f;
     motor->speed_ramp_target = 0.0f;
     motor->speed_sign = 1.0;
+
     motor->control_mode = FOC_CONTROL_SPEED;
+
     motor->target_position = 0.0f;
     motor->position_raw = 0.0f;
     motor->position = 0.0f;
     motor->position_offset = 0.0f;
     motor->position_dir = 0.0f;
+#ifdef HFI_ENABLE
+    HFI_Init(motor);
+#endif
     motor->state_timer = 0;
     motor->state = FOC_OK;
     return FOC_OK;
 }
 
+/**
+ * @brief FOC失能初始化
+ * 
+ * @param motor 
+ * @return foc_state_t 
+ */
 foc_state_t Foc_Deinit(foc_handle_t *motor)
 {
     return FOC_OK;
@@ -157,7 +176,7 @@ foc_state_t Foc_Loop(uint8_t motor_num)
     switch (motor->mode)
     {
     case MOTOR_STATE_IDLE: // 空状态
-        // ✅ 每个控制周期都刷新为零电压，防止PWM寄存器残留
+        // 每个控制周期都刷新为零电压，防止PWM寄存器残留
         motor->hal.pwm_set_duty(motor->num,
             PWM_ARR / 2, PWM_ARR / 2, PWM_ARR / 2);
 
@@ -170,6 +189,7 @@ foc_state_t Foc_Loop(uint8_t motor_num)
             motor->pi_speed.integral    = 0.0f;
             motor->pi_position.integral = 0.0f;
             motor->theta_obs_prev       = 0.0f;
+
             if (motor->control_mode == FOC_CONTROL_POSITION)
             {
                 motor->position_raw = 0.0f;
@@ -207,6 +227,25 @@ foc_state_t Foc_Loop(uint8_t motor_num)
         if (motor->state_timer > 4000)
         { // 持续约 100ms (假设频率 18kHz)
             motor->state_timer = 0;
+#ifdef HFI_ENABLE // 使能高频注入
+            if (motor->hfi_enable && motor->control_mode == FOC_CONTROL_POSITION)
+            {
+                motor->theta = 0.0f;
+                motor->theta_Observer = 0.0f;
+                motor->theta_obs_prev = 0.0f;
+                motor->position_raw = 0.0f;
+                motor->position_offset = 0.0f;
+                motor->position = 0.0f;
+                motor->speed_ramp_target = 0.0f;
+                motor->pi_speed.integral = 0.0f;
+                motor->pi_position.integral = 0.0f;
+                HFI_Reset_Angle(motor, 0.0f);
+                motor->PI_Speed_cnt = 0;
+                motor->close_cnt = 0;
+                motor->mode = MOTOR_STATE_CLOSE;
+                break;
+            }
+#endif
             motor->pi_pll.integral = motor->target_speed > 0 ? OPEN_ELEC_SPEED : -OPEN_ELEC_SPEED;
             motor->mode = MOTOR_STATE_OPEN;
         }
@@ -234,7 +273,7 @@ foc_state_t Foc_Loop(uint8_t motor_num)
 
         motor->state_timer++;
 
-        #ifdef FOC_CLOSE_LOOP_EN
+#ifdef FOC_CLOSE_LOOP_EN // 闭环使能
         {
             // 观测速度与开环速度接近才切换
             float speed_rpm = motor->speed_observer * 60.0f / _2_PI_POLE_PAIRS; // 把电角速度转换为圈每秒
@@ -248,8 +287,8 @@ foc_state_t Foc_Loop(uint8_t motor_num)
                 motor->pi_speed.integral = 0.0f; // 初始驱动力
                 motor->pi_speed.output = 6.7f;
 
-                motor->pi_q.integral = PWM_VBUS * 0.2f; // 给个初始积分，约2.4V
-                motor->pi_q.output = PWM_VBUS * 0.25f;
+                motor->pi_q.integral = PWM_VBUS * 0.5f; // 给个初始积分，约2.4V
+                motor->pi_q.output = PWM_VBUS * 0.55f;
 
                 if(motor->target_speed > 0)
                     motor->speed_ramp_target = fabsf(motor->speed_observer) * 60.0f / (_2_PI * POLE_PAIRS) + 50.0f;
@@ -257,15 +296,19 @@ foc_state_t Foc_Loop(uint8_t motor_num)
                     motor->speed_ramp_target = -fabsf(motor->speed_observer) * 60.0f / (_2_PI * POLE_PAIRS) + 50.0f;
 
                 motor->theta_Observer = motor->theta;
-                motor->theta_obs_prev = motor->theta_Observer;
+                motor->theta_obs_prev = motor->theta;
                 motor->pi_position.integral = 0.0f;
+#ifdef HFI_ENABLE
+                if (motor->hfi_enable)
+                    HFI_Reset_Angle(motor, motor->theta);
+#endif
                 motor->PI_Speed_cnt = 0;
                 motor->close_cnt = 0;
 
                 motor->mode = MOTOR_STATE_CLOSE;
             }
         }
-        #endif
+#endif
 
         break;
 
@@ -288,6 +331,7 @@ foc_state_t Foc_Loop(uint8_t motor_num)
             break;
         }
 
+        // 判断速度模式下，目标速度与运行速度的符号一致
         if (motor->control_mode == FOC_CONTROL_SPEED)
         {
             float run_sign    = (motor->speed_ramp_target >= 0.0f) ? 1.0f : -1.0f;
@@ -333,77 +377,36 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
         foc_state = FOC_ERR_OVERCURRENT;
     }
 
-    if(fabs(motor->i_uvw.v) >= CURRENT_LIMIT)
-    {
-        motor->i_uvw.v = motor->i_uvw.v > 0 ? CURRENT_LIMIT : -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-
-    // 3. Clark变换，
-    FOC_Clark_Transform(motor);
-    // 4. smo观测器推算转子位置，得到电角度和转速
-    SMO_Observer(motor, dt, MOTOR_STATE_OPEN);
-    FOC_Park_Transform(motor);
-
-    motor->u_dq.d = 0.0f;             // 通常d轴电流设为0以获得最大转矩效率
-    motor->u_dq.q = PWM_VBUS * 0.45f; // q轴电压与期望转矩相关, 电压范围为母线电压的30%~50%
-
-    if(motor->target_speed > 0)
-        motor->theta += OPEN_ELEC_SPEED * dt;     // 电角度递增
-    else if (motor->target_speed < 0)
-        motor->theta -= OPEN_ELEC_SPEED * dt;
-
-    motor->theta = fmod(motor->theta, _2_PI); // 限制在0~2π范围内，保持归一化
-    if (motor->theta < 0)
-        motor->theta += _2_PI; // 处理负数情况
-
-    // 3. 反Park变换
-    FOC_InvPark_Transform(motor);
-    // 4. SVPWM生成并输出
-    FOC_SVPWM_Generate(motor);
-    return foc_state;
-}
-
-/**
- * @brief 开环控制测试代码
- * 
- * @param motor 
- * @param dt 
- * @return foc_state_t 
- */
-foc_state_t Foc_Open_Loop_Test(foc_handle_t *motor, float dt)
-{
-    // 1. 电流校准（减去零点偏移）
-    motor->i_uvw.v = -(float)((int32_t)motor->i_adc_u - motor->i_cali_uvw.u) * CURRENT_SCALE;
-    motor->i_uvw.u = (float)((int32_t)motor->i_adc_w - motor->i_cali_uvw.w) * CURRENT_SCALE;
-    // 2. 电流限幅（保护电机）
-    motor->i_uvw.v = (motor->i_uvw.v > CURRENT_LIMIT) ? CURRENT_LIMIT : (motor->i_uvw.v < -CURRENT_LIMIT) ? -CURRENT_LIMIT
-                                                                                                          : motor->i_uvw.v;
-    motor->i_uvw.u = (motor->i_uvw.u > CURRENT_LIMIT) ? CURRENT_LIMIT : (motor->i_uvw.u < -CURRENT_LIMIT) ? -CURRENT_LIMIT
-                                                                                                          : motor->i_uvw.u;
     // 3. Clark变换，
     FOC_Clark_Transform(motor);
     // 4. smo观测器推算转子位置，得到电角度和转速
     SMO_Observer(motor, dt, MOTOR_STATE_OPEN);
 
+#ifdef FOC_OPEN_I_DEBUG_EN // 开环电流环调试代码使能
     // 固定角度为0，不依赖观测器
     float control_theta = 0.0f;
     float cos_th = cosf(control_theta);
     float sin_th = sinf(control_theta);
 
     // Park变换
-    motor->i_dq.d = motor->i_ab.alpha * cos_th + motor->i_ab.beta * sin_th;
-    motor->i_dq.q = -motor->i_ab.alpha * sin_th + motor->i_ab.beta * cos_th;
+    motor->i_dq.d = motor->i_ab.alpha;
+    motor->i_dq.q = motor->i_ab.beta;
 
-    // 阶跃信号
+    // d轴电流阶跃信号
     vofa_cnt++;
-    if(vofa_cnt < 8500)
-        motor->pi_q.target = 2.0f;
-    else if(vofa_cnt < 17000)
-        motor->pi_q.target = 4.0f;
-    else
+    if (vofa_cnt >= 34000)
         vofa_cnt = 0;
+
+    if (vofa_cnt >= 17000)
+        motor->pi_q.target = CURRENT_LOOP_STEP_HIGH_A;
+    else
+        motor->pi_q.target = CURRENT_LOOP_STEP_LOW_A;
     motor->pi_d.target = 0.0f;
+
+    float id_target = fmaxf(-CURRENT_TARGET_LIMIT, fminf(CURRENT_TARGET_LIMIT, motor->pi_d.target));
+    float iq_target_limit = sqrtf(fmaxf(0.0f, CURRENT_TARGET_LIMIT * CURRENT_TARGET_LIMIT - id_target * id_target));
+    motor->pi_d.target = id_target;
+    motor->pi_q.target = fmaxf(-iq_target_limit, fminf(iq_target_limit, motor->pi_q.target));
 
     motor->pi_d.feedback = motor->i_dq.d;
     motor->pi_q.feedback = motor->i_dq.q;
@@ -416,12 +419,27 @@ foc_state_t Foc_Open_Loop_Test(foc_handle_t *motor, float dt)
     motor->u_dq.q = motor->pi_q.output;
 
     motor->theta = 0;
+#else
+    FOC_Park_Transform(motor);
+
+    motor->u_dq.d = 0.0f;             // 通常d轴电流设为0以获得最大转矩效率
+    motor->u_dq.q = PWM_VBUS * 0.65f; // q轴电压与期望转矩相关, 电压范围为母线电压的30%~50%
+
+    if(motor->target_speed > 0)
+        motor->theta += OPEN_ELEC_SPEED * dt;     // 电角度递增
+    else if (motor->target_speed < 0)
+        motor->theta -= OPEN_ELEC_SPEED * dt;
+
+    motor->theta = fmod(motor->theta, _2_PI); // 限制在0~2π范围内，保持归一化
+    if (motor->theta < 0)
+        motor->theta += _2_PI; // 处理负数情况
+#endif
 
     // 3. 反Park变换
     FOC_InvPark_Transform(motor);
     // 4. SVPWM生成并输出
     FOC_SVPWM_Generate(motor);
-    return FOC_OK;
+    return foc_state;
 }
 
 /**
@@ -464,15 +482,25 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     FOC_Clark_Transform(motor);
     // 4. MRAS观测器推算转子位置，得到电角度和转速
     SMO_Observer(motor, dt, MOTOR_STATE_CLOSE);
+#ifdef HFI_ENABLE // HFI使能
+    HFI_Select_Angle(motor, dt);
+#endif
     Foc_Update_Position(motor);
 
     FOC_Park_Transform(motor);
+#ifdef HFI_ENABLE // HFI使能
+    HFI_Process_Current(motor, dt);
+#endif
 
     if (motor->control_mode == FOC_CONTROL_POSITION)
     {
-        float position_error = motor->target_position - motor->position;
-        if (fabsf(motor->speed) > POSITION_OVERSPEED_RPM ||
-            (motor->position_dir != 0.0f && position_error * motor->position_dir <= POSITION_DEADBAND_RAD))
+        float position_error = motor->target_position - motor->position; // 位置误差
+        uint8_t position_crossed = (motor->position_dir != 0.0f && position_error * motor->position_dir <= POSITION_DEADBAND_RAD);
+#ifdef HFI_ENABLE
+        if (motor->hfi_enable)
+            position_crossed = 0;
+#endif
+        if (fabsf(motor->speed) > POSITION_OVERSPEED_RPM || position_crossed)
         {
             motor->target_speed = 0.0f;
             motor->speed_ramp_target = 0.0f;
@@ -501,7 +529,7 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
 
         float speed_loop_target = motor->speed_ramp_target;
 
-        if (motor->control_mode == FOC_CONTROL_POSITION)
+        if (motor->control_mode == FOC_CONTROL_POSITION) // 位置环控制
         {
             float position_error = motor->target_position - motor->position;
             if (fabsf(position_error) < POSITION_DEADBAND_RAD)
@@ -517,13 +545,18 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
                 motor->pi_position.limit = PI_LIMIT_POSITION_RPM;
                 FOC_PI_Regulator(&motor->pi_position, dt * 10.0f);
                 speed_loop_target = motor->pi_position.output;
+#ifdef HFI_ENABLE
+                if (!motor->hfi_enable && motor->position_dir != 0.0f && speed_loop_target * motor->position_dir < 0.0f)
+                    speed_loop_target = 0.0f;
+#else
                 if (motor->position_dir != 0.0f && speed_loop_target * motor->position_dir < 0.0f)
                     speed_loop_target = 0.0f;
+#endif
             }
             motor->pi_speed.target = speed_loop_target;
             motor->speed_ramp_target = speed_loop_target;
         }
-        else
+        else // 速度环控制
         {
             if(motor->target_speed > motor->speed_ramp_target)
             {
@@ -566,14 +599,19 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     vofa_cnt++;
     if(vofa_cnt >= 17000 && vofa_cnt < 34000)
     {
-        motor->pi_q.target = 4.0f; // 速度环输出→iq目标
+        motor->pi_q.target = CURRENT_LOOP_STEP_HIGH_A; // 速度环输出→iq目标
     }
-    else if(vofa_cnt > 0 && vofa_cnt < 17000) 
-        motor->pi_q.target = 2.0f; // 速度环输出→iq目标
-    else 
+    else if(vofa_cnt > 0 && vofa_cnt < 17000)
+        motor->pi_q.target = CURRENT_LOOP_STEP_LOW_A; // 速度环输出→iq目标
+    else
         vofa_cnt = 0;
     motor->pi_d.target = 0.0f;                   // id始终为0
     #endif
+
+    float id_target = fmaxf(-CURRENT_TARGET_LIMIT, fminf(CURRENT_TARGET_LIMIT, motor->pi_d.target));
+    float iq_target_limit = sqrtf(fmaxf(0.0f, CURRENT_TARGET_LIMIT * CURRENT_TARGET_LIMIT - id_target * id_target));
+    motor->pi_d.target = id_target;
+    motor->pi_q.target = fmaxf(-iq_target_limit, fminf(iq_target_limit, motor->pi_q.target));
 
     // 6. 电流环PI调节
     motor->pi_d.feedback = motor->i_dq.d;
@@ -585,6 +623,9 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     FOC_PI_Regulator(&motor->pi_q, dt); // pid计算
     motor->u_dq.d = motor->pi_d.output;
     motor->u_dq.q = motor->pi_q.output;
+#ifdef HFI_ENABLE
+    HFI_Add_Voltage(motor, dt);
+#endif
 
     // 7. 反Park变换
     FOC_InvPark_Transform(motor);
@@ -610,6 +651,9 @@ foc_state_t Foc_Stop(uint8_t motor_num)
     motor->pi_position.integral = 0.0f;
     motor->pi_position.output = 0.0f;
     motor->position_dir = 0.0f;
+#ifdef HFI_ENABLE
+    HFI_Disable(motor);
+#endif
     motor->hal.drv_disable(motor_num); // 驱动失能
     return FOC_OK;
 }
@@ -626,6 +670,7 @@ foc_state_t Foc_Set_Speed(uint8_t motor_num, float speed)
     foc_handle_t *motor = &FOC_Motor[motor_num];
     if (motor->control_mode != FOC_CONTROL_SPEED)
     {
+        // 说明还在位置环
         motor->pi_position.integral = 0.0f;
         motor->pi_position.output = 0.0f;
         motor->pi_speed.integral = 0.0f;
@@ -641,6 +686,18 @@ foc_state_t Foc_Set_Position(uint8_t motor_num, float position_rad)
     foc_handle_t *motor = &FOC_Motor[motor_num];
     if (motor->mode != MOTOR_STATE_CLOSE)
     {
+#ifdef HFI_ENABLE
+        if (motor->hfi_enable)
+        {
+            float position_error = position_rad - motor->position;
+            motor->control_mode = FOC_CONTROL_POSITION;
+            motor->target_position = position_rad;
+            motor->position_dir = fabsf(position_error) > POSITION_DEADBAND_RAD ? (position_error > 0.0f ? 1.0f : -1.0f) : 1.0f;
+            motor->target_speed = motor->position_dir * OPEN_LOOP_SPEED_RPM;
+            motor->pi_speed.target = motor->target_speed;
+            return FOC_OK;
+        }
+#endif
         motor->target_position = position_rad;
         return FOC_ERR_LOOP;
     }
@@ -699,6 +756,30 @@ float Foc_Get_Position(uint8_t motor_num)
 {
     return FOC_Motor[motor_num].position;
 }
+
+#ifdef HFI_ENABLE
+foc_state_t Foc_HFI_Enable(uint8_t motor_num)
+{
+    HFI_Enable(&FOC_Motor[motor_num]);
+    return FOC_OK;
+}
+
+foc_state_t Foc_HFI_Disable(uint8_t motor_num)
+{
+    HFI_Disable(&FOC_Motor[motor_num]);
+    return FOC_OK;
+}
+
+uint8_t Foc_HFI_Is_Valid(uint8_t motor_num)
+{
+    return FOC_Motor[motor_num].hfi_valid;
+}
+
+float Foc_HFI_Get_Angle(uint8_t motor_num)
+{
+    return FOC_Motor[motor_num].theta_hfi;
+}
+#endif
 
 
 

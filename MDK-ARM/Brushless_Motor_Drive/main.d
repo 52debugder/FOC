@@ -12,6 +12,7 @@ brushless_motor_drive\main.o: ../Drivers/CMSIS/Include/cmsis_version.h
 brushless_motor_drive\main.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 brushless_motor_drive\main.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
 brushless_motor_drive\main.o: ../Drivers/CMSIS/Include/mpu_armv7.h
+brushless_motor_drive\main.o: ../Drivers/CMSIS/Include/cachel1_armv7.h
 brushless_motor_drive\main.o: ../Drivers/CMSIS/Device/ST/STM32H7xx/Include/system_stm32h7xx.h
 brushless_motor_drive\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h
 brushless_motor_drive\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
@@ -46,9 +47,11 @@ brushless_motor_drive\main.o: ../Core/Inc/usart.h
 brushless_motor_drive\main.o: ../Core/Inc/gpio.h
 brushless_motor_drive\main.o: ../foc_lib/inc/foc.h
 brushless_motor_drive\main.o: ../foc_lib/inc/foc_types.h
+brushless_motor_drive\main.o: ../foc_lib/inc/foc_config.h
 brushless_motor_drive\main.o: ../foc_lib/inc/foc_hal.h
 brushless_motor_drive\main.o: ../foc_lib/inc/smo.h
-brushless_motor_drive\main.o: ../foc_lib/inc/foc_config.h
 brushless_motor_drive\main.o: ../foc_lib/inc/foc_math.h
 brushless_motor_drive\main.o: ../foc_lib/inc/foc_utils.h
+brushless_motor_drive\main.o: ../foc_lib/inc/field_weakening.h
+brushless_motor_drive\main.o: ../foc_lib/inc/hfi.h
 brushless_motor_drive\main.o: D:\keil5\ARM\ARMCC\Bin\..\include\stdio.h

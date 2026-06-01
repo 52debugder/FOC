@@ -156,14 +156,18 @@ void FOC_InvPark_Transform(foc_handle_t *motor)
 void FOC_PI_Regulator(foc_pid_t *pi, float dt)
 {
     float error = pi->target - pi->feedback;
-    // 比例项
-    pi->output = pi->kp * error;
-    // 积分项（限幅防饱和）
-    pi->integral += pi->ki * error * dt;
-    pi->integral = (pi->integral > pi->limit) ? pi->limit : (pi->integral < -pi->limit) ? -pi->limit : pi->integral; // 三元运算符进行积分限幅
-    pi->output += pi->integral;
-    // 输出限幅
-    pi->output = (pi->output > pi->limit) ? pi->limit : (pi->output < -pi->limit) ? -pi->limit : pi->output;// 三元运算符进行输出限幅
+    float p = pi->kp * error;
+    float integral = pi->integral + pi->ki * error * dt;
+
+    integral = (integral > pi->limit) ? pi->limit : (integral < -pi->limit) ? -pi->limit : integral;
+
+    float output = p + integral;
+    float limited_output = (output > pi->limit) ? pi->limit : (output < -pi->limit) ? -pi->limit : output;
+
+    if (output == limited_output || (output > pi->limit && error < 0.0f) || (output < -pi->limit && error > 0.0f))
+        pi->integral = integral;
+
+    pi->output = limited_output;
 }
 
 /**
@@ -179,7 +183,7 @@ void FOC_SVPWM_Generate(foc_handle_t *motor)
     float Tx = 0.0f, Ty = 0.0f;
     uint8_t sector;
 
-    float k = PWM_ARR / PWM_VBUS;
+    float k = SQRT_3 * PWM_ARR / PWM_VBUS;
     float U1 = u_beta;
     float U2 = -SQRT_3_2 * u_alpha - u_beta / 2.0f;
     float U3 = SQRT_3_2 * u_alpha - u_beta / 2.0f;
