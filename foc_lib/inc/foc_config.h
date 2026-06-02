@@ -14,7 +14,7 @@ extern "C" {
 // #define HFI_ENABLE                          // 使能高频注入低速角度估计
 // #define FOC_CLOSE_I_DEBUG_EN
 // #define FOC_OPEN_I_DEBUG_EN
-// #define FW_ENABLE                           // 使能弱磁
+#define FW_ENABLE                           // 使能弱磁
 
 
 // PWM参数
@@ -44,12 +44,16 @@ extern "C" {
 // 弱磁控制参数
 #define CURRENT_PI_LIMIT        (PWM_VBUS * 0.95f / 1.732050807f) // 电流环电压输出限幅(V)
 #define CURRENT_REF_LIMIT       (CURRENT_PI_LIMIT * 0.85f / MOTOR_R) // 当前母线电压和相电阻下建议的电流指令上限(A)
-#define CURRENT_DEBUG_LIMIT     1.0f
+#define CURRENT_DEBUG_LIMIT     2.5f
 #define CURRENT_TARGET_LIMIT    ((CURRENT_REF_LIMIT < CURRENT_DEBUG_LIMIT) ? CURRENT_REF_LIMIT : CURRENT_DEBUG_LIMIT)
-#define FW_VOLTAGE_THRESHOLD    0.92f       // 触发弱磁的电压利用率（建议0.93~0.97）
+#define FW_VOLTAGE_THRESHOLD    0.96f       // 触发弱磁的电压利用率（建议0.93~0.97）
+#define FW_VOLTAGE_EXIT_THRESHOLD 0.88f     // 退出弱磁的电压利用率，低于进入阈值形成滞回
 #define FW_KI                   1.0f       // 弱磁积分增益（越大响应越快，但可能振荡）
-#define FW_EXIT_RATE            0.3f        // 退出弱磁时id恢复速率倍数（相对FW_KI）
-#define FW_ID_MAX               8.0f        // 最大弱磁电流限幅（A），不超过 CURRENT_LIMIT/2
+#define FW_EXIT_RATE            0.3f       // 退出弱磁时id恢复速率倍数（相对FW_KI）
+#define FW_SPEED_MARGIN_RPM     150.0f      // 超过目标转速该余量后不再继续加深弱磁
+#define FW_ID_MAX               (CURRENT_TARGET_LIMIT * 0.47f)        // 最大弱磁电流限幅（A）
+#define FW_TARGET_HOLD_MARGIN_RPM 50.0f
+#define FW_HOLD_KI_SCALE        0.10f
 
 // 电机通用参数（根据电机修改）
 // #define POLE_PAIRS              7.0f            // 电机极对数（示例：7对极）

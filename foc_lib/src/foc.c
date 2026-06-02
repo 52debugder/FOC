@@ -130,6 +130,9 @@ foc_state_t Foc_ParamInit(foc_handle_t *motor, const foc_hal_t *hal_interface)
     motor->target_speed = 0.0f;
     motor->speed_ramp_target = 0.0f;
     motor->speed_sign = 1.0;
+    motor->id_fw = 0.0f;
+    motor->fw_active = 0.0f;
+    motor->fw_voltage = 0.0f;
 
     motor->control_mode = FOC_CONTROL_SPEED;
 
@@ -189,6 +192,7 @@ foc_state_t Foc_Loop(uint8_t motor_num)
             motor->pi_speed.integral    = 0.0f;
             motor->pi_position.integral = 0.0f;
             motor->theta_obs_prev       = 0.0f;
+            motor->id_fw                = 0.0f;
 
             if (motor->control_mode == FOC_CONTROL_POSITION)
             {
@@ -454,6 +458,8 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     foc_state_t foc_state = FOC_OK;
     // pi输出限幅缓启动
     float pi_limit;
+    float voltage_mag;
+    float voltage_scale;
     if(motor->close_cnt < 500)           // 缩短到500拍（0.04秒）
     {
         motor->close_cnt++;
@@ -623,6 +629,16 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     FOC_PI_Regulator(&motor->pi_q, dt); // pid计算
     motor->u_dq.d = motor->pi_d.output;
     motor->u_dq.q = motor->pi_q.output;
+
+    voltage_mag = sqrtf(motor->u_dq.d * motor->u_dq.d + motor->u_dq.q * motor->u_dq.q);
+    if (voltage_mag > pi_limit)
+    {
+        voltage_scale = pi_limit / voltage_mag;
+        motor->u_dq.d *= voltage_scale;
+        motor->u_dq.q *= voltage_scale;
+        motor->pi_d.output = motor->u_dq.d;
+        motor->pi_q.output = motor->u_dq.q;
+    }
 #ifdef HFI_ENABLE
     HFI_Add_Voltage(motor, dt);
 #endif
@@ -647,6 +663,9 @@ foc_state_t Foc_Stop(uint8_t motor_num)
     motor->target_speed = 0.0f;
     motor->pi_speed.target = 0.0f;
     motor->speed_ramp_target = 0.0f;
+    motor->id_fw = 0.0f;
+    motor->fw_active = 0.0f;
+    motor->fw_voltage = 0.0f;
     motor->control_mode = FOC_CONTROL_SPEED;
     motor->pi_position.integral = 0.0f;
     motor->pi_position.output = 0.0f;
@@ -676,6 +695,12 @@ foc_state_t Foc_Set_Speed(uint8_t motor_num, float speed)
         motor->pi_speed.integral = 0.0f;
     }
     motor->control_mode = FOC_CONTROL_SPEED;
+    if (fabsf(motor->target_speed - speed) > 1.0f)
+    {
+        motor->id_fw = 0.0f;
+        motor->fw_active = 0.0f;
+        motor->fw_voltage = 0.0f;
+        }
     motor->target_speed = speed;
     motor->pi_speed.target = speed;
     return FOC_OK;

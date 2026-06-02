@@ -140,6 +140,7 @@ typedef struct
 
     float   id_fw;                              // 弱磁注入的负 id（弱磁控制器输出，≤0）
     float   fw_active;                          // 弱磁激活标志（调试用）
+    float   fw_voltage;                         // 弱磁电压矢量幅值（调试用）
 
     /*目标值*/      
     float                   target_iq;          // q轴电流目标值

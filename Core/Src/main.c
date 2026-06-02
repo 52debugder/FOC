@@ -190,11 +190,7 @@ int main(void)
   // );
 
   // Print4_Motor_To_VOFA(FOC_Motor[2].speed,FOC_Motor[2].pi_q.target,FOC_Motor[2].i_dq.q,FOC_Motor[2].pi_q.output);
-  Print4_Motor_To_VOFA(
-      FOC_Motor[2].speed,
-      FOC_Motor[2].i_dq.d,
-      FOC_Motor[2].i_dq.q,
-      angle_error
+  Print4_Motor_To_VOFA(FOC_Motor[2].speed,FOC_Motor[2].id_fw,FOC_Motor[2].fw_voltage,FOC_Motor[2].i_dq.q
   );
   // Print4_Motor_To_VOFA(FOC_Motor[2].speed,FOC_Motor[2].i_dq.d,FOC_Motor[2].i_dq.q,angle_error);
 
@@ -231,7 +227,7 @@ int main(void)
     //                  FOC_Motor[2].fw_active);     // 弱磁是否激活
 
     // Foc_Set_Position(2, 0.0f);
-    Foc_Set_Speed(2, 2000);
+    Foc_Set_Speed(2, -2000);
     // Print4_Motor_To_VOFA(FOC_Motor[2].position, FOC_Motor[2].target_position, FOC_Motor[2].speed, FOC_Motor[2].speed_ramp_target);
     // Foc_Set_Speed(1, 50);
     // Print2_Motor_To_VOFA((float)adc2_buf[0], (float)adc1_buf[1]);

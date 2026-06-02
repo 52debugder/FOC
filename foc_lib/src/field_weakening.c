@@ -4,58 +4,74 @@
 
 void FOC_FieldWeakening(foc_handle_t *motor, float dt)
 {
-#ifndef FW_ENABLE
-    motor->target_id = 0.0f;
-    motor->id_fw = 0.0f;
-    return;
-#endif
+#ifdef FW_ENABLE
+    float vd; // d轴电压
+    float vq; // q轴电压
+    float vs; // dq轴电压矢量和幅值
+    float voltage_limit; // 弱磁电压幅值
+    float voltage_enter; // 弱磁电压进入门限
+    float voltage_exit; // 弱磁电压退出门限
+    float id_fw_new;
+    float delta;
+    float delta_max;
+    float id_limit;
+    float speed_abs;
+    float target_abs;
+    float fw_ki_scale;
 
-    // ===== Step1：计算当前电压矢量幅值（使用上一拍PI输出）=====
-    float vd = motor->u_dq.d;
-    float vq = motor->u_dq.q;
-    float vs = sqrtf(vd * vd + vq * vq);
+    vd = motor->u_dq.d;
+    vq = motor->u_dq.q;
+    vs = sqrtf(vd * vd + vq * vq);
+    motor->fw_voltage = vs;
 
-    float vlim       = CURRENT_PI_LIMIT;
-    float vlim_enter = vlim * FW_VOLTAGE_THRESHOLD;      // 进入弱磁阈值
+    voltage_limit = CURRENT_PI_LIMIT;
+    voltage_enter = voltage_limit * FW_VOLTAGE_THRESHOLD;
+    voltage_exit = voltage_limit * FW_VOLTAGE_EXIT_THRESHOLD;
 
-    // ===== Step2：弱磁积分器 =====
-    if (vs > vlim_enter)
+    speed_abs = fabsf(motor->speed);
+    target_abs = fabsf(motor->target_speed);
+
+    if (target_abs < SPEED_START_THRESHOLD)
     {
-        // 进入弱磁：积分注入负 id
-        float id_fw_new = motor->id_fw - FW_KI * (vs - vlim_enter) * dt; // 原来的计算
-        float delta = id_fw_new - motor->id_fw;
-        float delta_max = 0.05f; // 每拍最大允许变化 50mA（根据采样频率 12.5kHz 算，0.05A/80µs ≈ 625 A/s）
-        if (delta < -delta_max) delta = -delta_max;
-        if (delta >  delta_max) delta = delta_max;
-        motor->id_fw += delta;
-        motor->fw_active = 1.0f;
+        motor->id_fw = 0.0f;
     }
     else
     {
-        // 退出弱磁：只有 id_fw < 0 时才逐渐恢复
-        if (motor->id_fw < 0.0f)
+        if (vs > voltage_enter && speed_abs < target_abs)
         {
-            motor->id_fw += FW_KI * FW_EXIT_RATE * dt;
-            if (motor->id_fw > 0.0f)
-                motor->id_fw = 0.0f;
+            fw_ki_scale = (speed_abs < target_abs - FW_TARGET_HOLD_MARGIN_RPM) ? 1.0f : FW_HOLD_KI_SCALE;
+            id_fw_new = motor->id_fw - FW_KI * fw_ki_scale * (vs - voltage_enter) * dt;
+            delta = id_fw_new - motor->id_fw;
+            delta_max = 0.05f;
+            if (delta < -delta_max) delta = -delta_max;
+            if (delta >  delta_max) delta = delta_max;
+            motor->id_fw += delta;
         }
-        if (motor->id_fw >= 0.0f)
-            motor->fw_active = 0.0f;
+        else if (vs < voltage_exit ||
+                 speed_abs > target_abs + FW_SPEED_MARGIN_RPM)
+        {
+            if (motor->id_fw < 0.0f)
+            {
+                motor->id_fw += FW_KI * FW_EXIT_RATE * dt;
+                if (motor->id_fw > 0.0f)
+                    motor->id_fw = 0.0f;
+            }
+        }
     }
 
-    // ===== Step3：双重限幅保护 =====
-    // 限幅1：最大弱磁电流
-    if (motor->id_fw < -FW_ID_MAX)
-        motor->id_fw = -FW_ID_MAX;
+    id_limit = fminf(FW_ID_MAX, CURRENT_TARGET_LIMIT);
+    if (motor->id_fw < -id_limit)
+        motor->id_fw = -id_limit;
+    if (motor->id_fw > 0.0f)
+        motor->id_fw = 0.0f;
 
-    // 限幅2：总电流圆限制 sqrt(id^2 + iq^2) < CURRENT_TARGET_LIMIT
-    // 保证 iq 优先，id 被圆限制
-    float iq_ref     = motor->pi_q.target;
-    float id_max_fw  = -sqrtf(fmaxf(0.0f,
-                         CURRENT_TARGET_LIMIT * CURRENT_TARGET_LIMIT - iq_ref * iq_ref));
-    if (motor->id_fw < id_max_fw)
-        motor->id_fw = id_max_fw;
-
-    // ===== Step4：写入 id 目标值 =====
+    motor->fw_active = (motor->id_fw < 0.0f) ? 1.0f : 0.0f;
+    motor->target_id = motor->id_fw;
     motor->pi_d.target = motor->id_fw;
+#else
+    motor->target_id = 0.0f;
+    motor->id_fw = 0.0f;
+    motor->fw_active = 0.0f;
+    motor->fw_voltage = 0.0f;
+#endif
 }
