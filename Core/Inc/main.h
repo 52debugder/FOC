@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm32h7xx_hal.h"
+#include "stm32f1xx_hal.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -57,12 +57,6 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define BM_ENB_Pin GPIO_PIN_5
-#define BM_ENB_GPIO_Port GPIOC
-#define BM_ENA_Pin GPIO_PIN_0
-#define BM_ENA_GPIO_Port GPIOB
-#define LED_Pin GPIO_PIN_7
-#define LED_GPIO_Port GPIOG
 
 /* USER CODE BEGIN Private defines */
 
