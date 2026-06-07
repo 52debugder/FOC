@@ -10,7 +10,7 @@
  */
 
 #include "foc.h"
-
+//1111111111111111111
 foc_handle_t FOC_Motor[MAX_MOTOR_NUM + 1] = {0};
 uint32_t vofa_cnt = 0;
 
