@@ -299,8 +299,8 @@ foc_state_t Foc_Loop(uint8_t motor_num)
                 else
                     motor->speed_ramp_target = -fabsf(motor->speed_observer) * 60.0f / (_2_PI * POLE_PAIRS) + 50.0f;
 
-                motor->theta_Observer = motor->theta;
-                motor->theta_obs_prev = motor->theta;
+                motor->theta = motor->theta_Observer;
+                motor->theta_obs_prev = motor->theta_Observer;
                 motor->pi_position.integral = 0.0f;
 #ifdef HFI_ENABLE
                 if (motor->hfi_enable)
@@ -427,7 +427,7 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
     FOC_Park_Transform(motor);
 
     motor->u_dq.d = 0.0f;             // 通常d轴电流设为0以获得最大转矩效率
-    motor->u_dq.q = PWM_VBUS * 0.65f; // q轴电压与期望转矩相关, 电压范围为母线电压的30%~50%
+    motor->u_dq.q = PWM_VBUS * 1.5f; // q轴电压与期望转矩相关, 电压范围为母线电压的30%~50%
 
     if(motor->target_speed > 0)
         motor->theta += OPEN_ELEC_SPEED * dt;     // 电角度递增
@@ -488,6 +488,10 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     FOC_Clark_Transform(motor);
     // 4. MRAS观测器推算转子位置，得到电角度和转速
     SMO_Observer(motor, dt, MOTOR_STATE_CLOSE);
+
+    // if(angle_error > 0.99) // 角度误差过大，停止电机
+    //     Foc_Stop(motor);
+
 #ifdef HFI_ENABLE // HFI使能
     HFI_Select_Angle(motor, dt);
 #endif

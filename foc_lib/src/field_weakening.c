@@ -1,7 +1,22 @@
-/* field_weakening.c */
+/**
+ * @file field_weakening.c
+ * @MING
+ * @brief 弱磁控制代码部分
+ * @version 0.1
+ * @date 2026-06-03
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
 #include "field_weakening.h"
 #include "foc_math.h"
 
+/**
+ * @brief 弱磁核心代码
+ * 
+ * @param motor 电机结构体指针
+ * @param dt 
+ */
 void FOC_FieldWeakening(foc_handle_t *motor, float dt)
 {
 #ifdef FW_ENABLE
@@ -11,13 +26,13 @@ void FOC_FieldWeakening(foc_handle_t *motor, float dt)
     float voltage_limit; // 弱磁电压幅值
     float voltage_enter; // 弱磁电压进入门限
     float voltage_exit; // 弱磁电压退出门限
-    float id_fw_new;
-    float delta;
-    float delta_max;
-    float id_limit;
-    float speed_abs;
-    float target_abs;
-    float fw_ki_scale;
+    float id_fw_new; // 新算的弱磁电流
+    float delta; // 弱磁电流增量
+    float delta_max; // 弱磁电流增量上限
+    float id_limit; // 弱磁电流上限
+    float speed_abs; // 速度绝对值
+    float target_abs; // 目标速度绝对值
+    float fw_ki_scale; // 弱磁积分增益
 
     vd = motor->u_dq.d;
     vq = motor->u_dq.q;
