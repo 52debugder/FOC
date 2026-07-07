@@ -3,6 +3,7 @@
 
 #include "foc_types.h"
 #include "foc_config.h"
+#include "foc_utils.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +30,12 @@ void FOC_Park_Transform(foc_handle_t *motor);
 void FOC_InvPark_Transform(foc_handle_t *motor);
 void FOC_PI_Regulator(foc_pid_t *pi, float dt);
 void FOC_SVPWM_Generate(foc_handle_t *motor);
-
+foc_Trig_Components FOC_Trig_Functions(int16_t hAngle);
+int16_t FOC_RadToQ15Angle(float theta);
+void FOC_GetSinCos(float theta, float *sin_theta, float *cos_theta);
+float FOC_FastNorm(float alpha, float beta);
+void FOC_Updata_Trig(foc_handle_t *motor);
+float FOC_fmod(float *x, float y);
 
 
 #ifdef __cplusplus

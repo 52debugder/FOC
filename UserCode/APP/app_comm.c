@@ -1,0 +1,80 @@
+#include "app_comm.h"
+#include "comm_uart.h"
+#include "comm_iic.h"
+
+#define APP_DEBUG_SAMPLE_DIVIDER 10U
+
+typedef struct
+{
+    float u;
+    float v;
+    float w;
+} app_debug_sample_t;
+
+static volatile uint8_t app_debug_sample_pending;
+static uint8_t app_debug_sample_counter;
+
+extern as5600_magnet_state_t magnet_state;
+extern uint8_t as5600_status;
+extern uint8_t as5600_agc;
+extern uint16_t as5600_magnitude;
+extern float angle;
+extern float speed;
+
+extern uint32_t count;
+
+void app_uart_send(const uint8_t *p_data, uint16_t length)
+{
+    comm_uart_send(p_data, length);
+}
+
+void app_uart_recv(uint8_t *p_data, uint16_t length)
+{
+    comm_uart_recv(p_data, length);
+}
+
+void app_iic_transmit(const uint8_t *p_data, uint16_t length)
+{
+    comm_iic_transmit(p_data, length);
+}
+
+void app_iic_receive(uint8_t *p_data, uint16_t length)
+{
+    comm_iic_receive(p_data, length);
+}
+
+void app_debug_sample_from_isr(void)
+{
+    app_debug_sample_counter++;
+    if (app_debug_sample_counter < APP_DEBUG_SAMPLE_DIVIDER)
+        return;
+
+    app_debug_sample_counter = 0U;
+    app_debug_sample_pending = 1U;
+}
+
+void app_debug_print(void)
+{
+    if ((app_debug_sample_pending == 0U) || (comm_uart_tx_is_idle() == 0U))
+        return;
+
+    foc_handle_t *FOC_Motor = Foc_GetStruct(1);
+    app_debug_sample_t sample;
+
+    __disable_irq();
+    sample.u = FOC_Motor->speed_ramp_target;
+    sample.v = FOC_Motor->sensor_mech.speed;
+    sample.w = (float)count;
+    app_debug_sample_pending = 0U;
+    __enable_irq();
+
+    HAL_StatusTypeDef status = comm_vofa_send3_async(sample.u, sample.v, sample.w);
+    if (status != HAL_OK)
+    {
+        __disable_irq();
+        if (app_debug_sample_pending == 0U)
+            app_debug_sample_pending = 1U;
+        __enable_irq();
+    }
+}
+

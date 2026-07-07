@@ -49,6 +49,12 @@ typedef enum
 
 typedef struct
 {
+  int16_t hCos;
+  int16_t hSin;
+}foc_Trig_Components;
+
+typedef struct
+{
     float u;
     float v;
     float w;
@@ -94,10 +100,25 @@ typedef struct {
 
 typedef struct
 {
-    float duty_u;
-    float duty_v;
-    float duty_w;
+    uint16_t duty_u;
+    uint16_t duty_v;
+    uint16_t duty_w;
 }foc_pwm_t;
+
+typedef struct
+{
+    float angle;                    // 转子机械角度（rad）
+    float speed;                    // 电机机械转速（rpm）
+    float vaild;                    // 有效标志
+    uint8_t dir;                    // 转向标志
+    float zero_offset;              // 零偏
+    uint32_t sample_seq;            // 当前采样序号
+    uint32_t align_prev_sample_seq; // 对齐逻辑上一次处理过的采样序号
+    float align_prev_angle;         // 上一次用于对比的角度  
+    uint16_t align_stable_count;    // 连续稳定采样计数
+    uint8_t align_has_prev;         // 是否已经拿到过第一帧样本
+    uint8_t zero_offset_locked;     // 零偏是否锁定
+}foc_sensor_mech_t;
 
 typedef struct
 {
@@ -110,6 +131,7 @@ typedef struct
     foc_motor_params_t      motor;              // 电机参数
     foc_smo_t               smo;                // 滑膜观测器
     foc_pwm_t               pwm;                // PWM输出
+    foc_sensor_mech_t       sensor_mech;        // 编码器测出的数据
 
     foc_uvw_t               i_uvw;              // 三相电流
     foc_uvw_t               i_cali_uvw;         // 零偏电流
@@ -138,9 +160,9 @@ typedef struct
     float                   speed_observer;     // 观测器得到的电机转速(rpm)
     float                   speed_sign;         // 电机转子正转还是反转
 
-    float   id_fw;                              // 弱磁注入的负 id（弱磁控制器输出，≤0）
-    float   fw_active;                          // 弱磁激活标志（调试用）
-    float   fw_voltage;                         // 弱磁电压矢量幅值（调试用）
+    float                   id_fw;              // 弱磁注入的负 id（弱磁控制器输出，≤0）
+    float                   fw_active;          // 弱磁激活标志（调试用）
+    float                   fw_voltage;         // 弱磁电压矢量幅值（调试用）
 
     /*目标值*/      
     float                   target_iq;          // q轴电流目标值
@@ -152,6 +174,12 @@ typedef struct
     float                   position;           // 扣零后的累计机械位置(rad)
     float                   position_offset;    // 位置零点偏移(rad)
     float                   position_dir;       // 本次位置运动方向
+
+    foc_Trig_Components     trig;              // 三角函数
+    float                   sin_theta;         // 浮点sin缓存
+    float                   cos_theta;         // 浮点cos缓存
+    uint32_t                trig_sample_seq;   // trig缓存对应的传感器采样序号
+    uint8_t                 trig_sample_valid; // trig缓存是否有效
 
 #ifdef HFI_ENABLE
     uint8_t                 hfi_enable;         // 高频注入使能
@@ -173,6 +201,7 @@ typedef struct
     /*运行计数*/
     uint32_t                state_timer;         // 运行状态定时器
     uint8_t                 PI_Speed_cnt;        // 速度PI计数
+    uint8_t                 PI_Position_cnt;    // 位置pi计数
     uint32_t                close_cnt;           // 闭环计数
 
     uint8_t                 init_done;            // 初始化标志位

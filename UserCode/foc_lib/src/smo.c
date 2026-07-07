@@ -28,13 +28,12 @@ void BEMF_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     motor->e_ab.alpha += (e_alpha_raw - motor->e_ab.alpha) * BEMF_LPF;
     motor->e_ab.beta  += (e_beta_raw  - motor->e_ab.beta)  * BEMF_LPF;
     
-    float cos_obs = cosf(motor->theta_Observer);
-    float sin_obs = sinf(motor->theta_Observer);
-    angle_error = -motor->e_ab.alpha * cos_obs - motor->e_ab.beta * sin_obs; // 临时变为临时变量以便调试
-    
-    // 归一化：消除转速对增益的影响
-    float e_amp = sqrtf(motor->e_ab.alpha * motor->e_ab.alpha 
-                + motor->e_ab.beta  * motor->e_ab.beta);
+    float cos_obs;
+    float sin_obs;
+    FOC_GetSinCos(motor->theta_Observer, &sin_obs, &cos_obs);
+    angle_error = -motor->e_ab.alpha * cos_obs - motor->e_ab.beta * sin_obs;
+
+    float e_amp = FOC_FastNorm(motor->e_ab.alpha, motor->e_ab.beta);
     
     // 软限幅
     float e_amp_min = 0.5f;
@@ -75,7 +74,7 @@ void BEMF_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     if(motor->speed_observer < -OB_SPEED_LIMIT) motor->speed_observer = -OB_SPEED_LIMIT;
     
     motor->theta_Observer += motor->speed_observer * dt;
-    motor->theta_Observer = fmodf(motor->theta_Observer, _2_PI);
+    motor->theta_Observer = FOC_fmod(&motor->theta_Observer, _2_PI);
     if(motor->theta_Observer < 0) motor->theta_Observer += _2_PI;
     
     if(mode == MOTOR_STATE_CLOSE)
@@ -114,9 +113,9 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     
     // ===== 第4步：BEMF = 切换项的低通滤波 =====
     #ifdef FOC_PLL_ENABLE
-    float speed_rpm = fabsf(motor->speed_observer) * 60.0f / _2_PI_POLE_PAIRS;
+    float speed_rpm = (motor->speed_observer >= 0.0f ? motor->speed_observer : -motor->speed_observer) * 60.0f / _2_PI_POLE_PAIRS;
     #else
-    float speed_rpm = fabsf(motor->speed) * 60.0f / _2_PI_POLE_PAIRS;
+    float speed_rpm = (motor->speed >= 0.0f ? motor->speed : -motor->speed) * 60.0f / _2_PI_POLE_PAIRS;
     #endif // FOC_PLL_ENABLE
     
     motor->e_ab.alpha += (z_alpha - motor->e_ab.alpha) * FOC_calc_dynamic_lpf(speed_rpm);
@@ -126,18 +125,15 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     #ifdef FOC_PLL_ENABLE
 
     float theta_comp = motor->theta_Observer - calc_compensation_angle(motor->speed_observer);
-    // float theta_comp = motor->theta_Observer;
-
-    float cos_obs = cosf(theta_comp);
-    float sin_obs = sinf(theta_comp);
+    float cos_obs;
+    float sin_obs;
+    FOC_GetSinCos(theta_comp, &sin_obs, &cos_obs);
 
     float speed_sign = (motor->speed_observer >= 0.0f) ? 1.0f : -1.0f;
     angle_error = -motor->e_ab.alpha * cos_obs - motor->e_ab.beta  * sin_obs;
     angle_error *= speed_sign;
-    
-    // 归一化：消除转速对增益的影响
-    float e_amp = sqrtf(motor->e_ab.alpha * motor->e_ab.alpha 
-                + motor->e_ab.beta  * motor->e_ab.beta);
+
+    float e_amp = FOC_FastNorm(motor->e_ab.alpha, motor->e_ab.beta);
     
     // 软限幅
     float e_amp_min = 0.5f;
@@ -165,7 +161,7 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     if(motor->speed_observer < -OB_SPEED_LIMIT) motor->speed_observer = -OB_SPEED_LIMIT;
     
     motor->theta_Observer += motor->speed_observer * dt;
-    motor->theta_Observer = fmodf(motor->theta_Observer, _2_PI);
+    motor->theta_Observer = FOC_fmod(&motor->theta_Observer, _2_PI);
     if(motor->theta_Observer < 0) motor->theta_Observer += _2_PI;
     
     if(mode == MOTOR_STATE_CLOSE)

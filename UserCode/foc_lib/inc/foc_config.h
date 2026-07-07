@@ -7,35 +7,37 @@
 extern "C" {
 #endif
 
-
-#define FOC_CLOSE_LOOP_EN
-#define FOC_SPEED_PI_EN
+#define FOC_SENSOR_EN                       // 使能传感器
+#define FOC_CLOSE_LOOP_EN                   // 使能闭环
+// #define FOC_POSITION_PI_EN
+#define FOC_SPEED_PI_EN                     // 使能速度环
 #define FOC_PLL_ENABLE                      // 使能锁相环
-// #define HFI_ENABLE                          // 使能高频注入低速角度估计
+// #define HFI_ENABLE                            // 使能高频注入低速角度估计
+// #define FOC_SMO_EN                          // 使能观测器
 // #define FOC_CLOSE_I_DEBUG_EN
 // #define FOC_OPEN_I_DEBUG_EN
-#define FW_ENABLE                           // 使能弱磁
+// #define FW_ENABLE                           // 使能弱磁
 
 
 // PWM参数
-#define PWM_ARR                 5500.0f         // 自动重载值
+#define PWM_ARR                 1800         // 自动重载值
 #define PWM_SCALE               3.3f            // ADC参考电压
-#define PWM_VBUS                12.4f           // VBUS母线电压
-#define ADC_RESOLUTION          65535.0f        // 16位ADC分辨率
+#define PWM_VBUS                12.0f           // VBUS母线电压
+#define ADC_RESOLUTION          4096        // 12位ADC分辨率
 // #define TS                      0.0001176f     // 采样时间间隔
-#define TS                      0.00008f     // 采样时间间隔
+#define TS                      0.00005f        // 采样时间间隔 (20kHz ISR)
 
 // INA240参数   
-#define INA240_GAIN             50.0f           // INA240A2增益50V/V
-#define SAMPLE_RESISTOR         0.001f         // 采样电阻1mΩ
+#define INA240_GAIN             50             // INA240A2增益50V/V
+#define SAMPLE_RESISTOR         0.01f         // 采样电阻10mΩ
 
 // 开环参数
-#define OPEN_LOOP_UQ            (PWM_VBUS * 0.65f) // 开环q轴强拉力度
+#define OPEN_LOOP_UQ            (PWM_VBUS * 0.45f) // 开环q轴强拉力度
 
 // 观测器参数   
 #define SMO_K                   15.0f            // 滑模增益 (根据实际效果调试)
 #define BEMF_LPF                0.1f           // 反电动势低通滤波系数
-#define SPEED_OBSERBER_LPF      0.1f           // 观测器求得的速度的低通滤波系数
+#define SPEED_OBSERBER_LPF      0.05f           // 观测器求得的速度的低通滤波系数
 #define COMP                    0.0f            // 偏移量
 #define OB_SPEED_LIMIT          10000.0f         // 观测速度限幅
 #define PLL_INIT_LIMIT          1500.0f         // PLL积分限幅4,673.521850899743
@@ -63,7 +65,7 @@ extern "C" {
 // #define MOTOR_L_D               0.000335029f   // D轴电感
 // #define MOTOR_L                 0.000348191f    // 相电感 (Henry)
 // #define MAX_MOTOR_NUM           2               // 最大电机数量
-#define POLE_PAIRS              7.0f            // 电机极对数（示例：7对极）
+#define POLE_PAIRS              7               // 电机极对数（示例：7对极）
 #define CURRENT_LIMIT           20.0f           // 最大相电流(A)
 #define MOTOR_R                 2.55f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
 #define MOTOR_L                 0.00086f    // 相电感 (Henry)
@@ -75,10 +77,10 @@ extern "C" {
 #define BTN7960_DEAD_TIME_S     0.0000005f 
 
 // 电流环参数
-#define CURRENT_LOOP_BANDWIDTH_HZ 200.0f       // 电流环带宽
+#define CURRENT_LOOP_BANDWIDTH_HZ 500.0f       // 电流环带宽
 #define CURRENT_LOOP_WC          (6.283185307f * CURRENT_LOOP_BANDWIDTH_HZ)
 #define CURRENT_LOOP_STEP_LOW_A  0.2f                           // 电流环阶跃响应的低响应
-#define CURRENT_LOOP_STEP_HIGH_A 0.6f                           // 电流环阶跃响应的高响应
+#define CURRENT_LOOP_STEP_HIGH_A 1.0f                           // 电流环阶跃响应的高响应
 #define PI_KP_D                 (MOTOR_L * CURRENT_LOOP_WC)
 #define PI_KI_D                 (MOTOR_R * CURRENT_LOOP_WC)
 #define PI_KP_Q                 (MOTOR_L * CURRENT_LOOP_WC)
@@ -86,7 +88,7 @@ extern "C" {
 
 // 速度环参数
 #define PI_KP_SPEED             0.002f         // 速度PI比例系数
-#define PI_KI_SPEED             0.05f          // 速度PI积分系数
+#define PI_KI_SPEED             0.007f          // 速度PI积分系数
 #define PI_LIMIT_SPEED          CURRENT_TARGET_LIMIT // 速度PI输出限幅(A)
 
 // 位置环参数
@@ -95,6 +97,8 @@ extern "C" {
 #define PI_LIMIT_POSITION_RPM   100.0f         // 位置环输出速度限幅(RPM)
 #define POSITION_DEADBAND_RAD   0.03f          // 位置到位死区(rad)
 #define POSITION_OVERSPEED_RPM  600.0f         // 位置模式超速保护(RPM)
+
+#define FOC_ELECTRICAL_ANGLE_OFFSET (-2.0f)    // 电角度偏移量，用于补偿编码器校准误差
 
 // 高频注入参数
 #define HFI_INJECTION_VOLTAGE   0.1f           // d轴高频注入电压(V)

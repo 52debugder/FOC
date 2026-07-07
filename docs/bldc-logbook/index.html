@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BLDC 调试日志</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Brushless Motor Dev Journal</p>
+        <h1>无刷电机代码日志</h1>
+        <p class="hero-text">
+          记录问题、实验、参数、结论和下一步动作。这个页面支持直接在浏览器里编辑，并自动保存在本地草稿。
+        </p>
+      </div>
+      <div class="hero-panel">
+        <div class="status-chip">
+          <span class="status-dot"></span>
+          <span id="draft-status">本地草稿未保存</span>
+        </div>
+        <div class="hero-actions">
+          <button type="button" id="save-draft">保存草稿</button>
+          <button type="button" id="reset-draft" class="ghost">清空本地草稿</button>
+          <button type="button" id="add-entry" class="ghost">新增日志条目</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Project Snapshot</p>
+            <h2>工程总览</h2>
+          </div>
+          <span class="panel-tag">Editable</span>
+        </div>
+        <div class="project-grid">
+          <article class="meta-card" contenteditable="true">
+            <h3>项目名称</h3>
+            <p>填写你的工程名、控制板、驱动板型号。</p>
+          </article>
+          <article class="meta-card" contenteditable="true">
+            <h3>当前目标</h3>
+            <p>填写本阶段目标，例如“闭环启动稳定”或“AS5600 角度校准”。</p>
+          </article>
+          <article class="meta-card" contenteditable="true">
+            <h3>关键参数</h3>
+            <p>填写极对数、母线电压、电流采样、电机电阻电感等。</p>
+          </article>
+          <article class="meta-card" contenteditable="true">
+            <h3>今日结论</h3>
+            <p>填写今天最重要的发现或结果。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Focus</p>
+            <h2>本次调试重点</h2>
+          </div>
+        </div>
+        <div class="editable-block" contenteditable="true">
+          <p>在这里写今天重点关注的问题、怀疑点、验证方向。</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Environment</p>
+            <h2>环境记录</h2>
+          </div>
+        </div>
+        <div class="checklist">
+          <label><input type="checkbox"> 固件已编译并烧录</label>
+          <label><input type="checkbox"> 串口工具已连接</label>
+          <label><input type="checkbox"> 电源电压已确认</label>
+          <label><input type="checkbox"> 电机和编码器接线已检查</label>
+          <label><input type="checkbox"> 关键参数已备份</label>
+        </div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Timeline</p>
+            <h2>调试时间线</h2>
+          </div>
+          <button type="button" id="add-timeline" class="inline-action">新增时间线卡片</button>
+        </div>
+        <div id="timeline" class="timeline">
+          <article class="timeline-card" contenteditable="true">
+            <div class="timeline-meta">
+              <span>09:30</span>
+              <span>初始观察</span>
+            </div>
+            <h3>示例：上电后电机不转</h3>
+            <p>写现象、串口输出、示波器波形或第一轮判断。</p>
+          </article>
+          <article class="timeline-card" contenteditable="true">
+            <div class="timeline-meta">
+              <span>11:10</span>
+              <span>参数修正</span>
+            </div>
+            <h3>示例：修改 PI 与采样周期</h3>
+            <p>写你改了哪些参数、为什么改、改完后的变化。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Issue Tracker</p>
+            <h2>问题与解决办法</h2>
+          </div>
+          <button type="button" id="add-issue" class="inline-action">新增问题卡片</button>
+        </div>
+        <div id="issue-board" class="issue-board">
+          <article class="issue-card">
+            <div class="issue-label">Problem</div>
+            <div class="issue-body" contenteditable="true">
+              <h3>示例问题</h3>
+              <p>描述问题现象、触发条件、影响范围。</p>
+            </div>
+          </article>
+          <article class="issue-card solution-card">
+            <div class="issue-label">Fix</div>
+            <div class="issue-body" contenteditable="true">
+              <h3>示例解决办法</h3>
+              <p>描述修改动作、验证手段、最终结果。</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Code Notes</p>
+            <h2>代码片段 / 参数记录</h2>
+          </div>
+        </div>
+        <div class="code-note" contenteditable="true">
+<pre><code>例如：
+- 修改文件：
+- 修改函数：
+- 原参数：
+- 新参数：
+- 修改原因：
+- 结果：</code></pre>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Next Step</p>
+            <h2>下一步计划</h2>
+          </div>
+        </div>
+        <div class="editable-block" contenteditable="true">
+          <p>在这里写下一轮验证计划、待补代码、待测参数、风险点。</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="timeline-template">
+    <article class="timeline-card" contenteditable="true">
+      <div class="timeline-meta">
+        <span>新时间</span>
+        <span>新阶段</span>
+      </div>
+      <h3>新日志条目</h3>
+      <p>记录这次操作、观察结果和结论。</p>
+    </article>
+  </template>
+
+  <template id="issue-template">
+    <article class="issue-card">
+      <div class="issue-label">Problem</div>
+      <div class="issue-body" contenteditable="true">
+        <h3>新问题</h3>
+        <p>问题现象、条件、排查方向。</p>
+      </div>
+    </article>
+    <article class="issue-card solution-card">
+      <div class="issue-label">Fix</div>
+      <div class="issue-body" contenteditable="true">
+        <h3>新解决办法</h3>
+        <p>修复动作、验证结果、遗留问题。</p>
+      </div>
+    </article>
+  </template>
+
+  <script src="./script.js"></script>
+</body>
+</html>

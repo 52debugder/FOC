@@ -1,0 +1,9 @@
+foc\smo.o: ..\UserCode\foc_lib\src\smo.c
+foc\smo.o: ../UserCode/foc_lib/inc/smo.h
+foc\smo.o: ../UserCode/foc_lib/inc/foc_types.h
+foc\smo.o: D:\keil5\ARM\ARMCC\Bin\..\include\stdint.h
+foc\smo.o: ../UserCode/foc_lib/inc/foc_config.h
+foc\smo.o: D:\keil5\ARM\ARMCC\Bin\..\include\math.h
+foc\smo.o: ../UserCode/foc_lib/inc/foc_hal.h
+foc\smo.o: ../UserCode/foc_lib/inc/foc_math.h
+foc\smo.o: ../UserCode/foc_lib/inc/foc_utils.h

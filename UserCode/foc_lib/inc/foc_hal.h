@@ -13,9 +13,8 @@ extern "C"{
 typedef struct
 {
     void (*pwm_start) (uint8_t num);                                                   // pwm开始
-    void (*pwm_enable) (uint8_t num);                                                  // pwm使能                                  
     void (*pwm_disable) (uint8_t num);                                                 // pwm失能
-    void (*pwm_set_duty) (uint8_t num, float du, float dv, float dw);                        // 设置占空比
+    void (*pwm_set_duty) (uint8_t num, uint16_t du, uint16_t dv, uint16_t dw);                        // 设置占空比
 
     void (*drv_enable) (uint8_t num);                                                  // 驱动使能
     void (*drv_disable) (uint8_t num);                                                 // 驱动失能

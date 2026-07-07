@@ -26,6 +26,7 @@ extern "C" {
 #define TS_MOTORL           (TS/MOTOR_L)
 #define DEAD_COMP_V         (PWM_VBUS * BTN7960_DEAD_TIME_S / TS)  
 #define PI_LIMIT            (PWM_VBUS * 0.95f / SQRT_3)                                     // 最大不失真电压
+#define SVPWM_K             (SQRT_3 * PWM_ARR / PWM_VBUS)
 
 
 #ifdef __cplusplus

@@ -11,6 +11,62 @@
 
 #include "foc_math.h"
 
+#define FOC_Q15_TO_FLOAT        (1.0f / 32768.0f)
+#define FOC_RAD_TO_Q15_SCALE    (65536.0f / _2_PI)
+#define FOC_FAST_NORM_GAIN      0.375f
+#define FOC_INV_SQRT3           0.577350269f
+#define FOC_HALF_VBUS_TO_PWM    (PWM_ARR / (2.0f * PWM_VBUS))
+#define FOC_HALF_PWM_ARR        (PWM_ARR / 2.0f)
+#define FOC_Q15_SHIFT           15
+#define FOC_Q15_ONE             (1 << FOC_Q15_SHIFT)
+#define FOC_Q15_ROUND           (1 << (FOC_Q15_SHIFT - 1))
+#define FOC_CURRENT_TO_Q15      (32768.0f / CURRENT_LIMIT)
+#define FOC_CURRENT_FROM_Q15    (CURRENT_LIMIT / 32768.0f)
+#define FOC_VOLTAGE_TO_Q15      (32768.0f / CURRENT_PI_LIMIT)
+#define FOC_VOLTAGE_FROM_Q15    (CURRENT_PI_LIMIT / 32768.0f)
+#define FOC_Q15_SQRT3_2         28378
+#define FOC_SVPWM_K_COUNT       ((int32_t)(CURRENT_PI_LIMIT * SQRT_3 * PWM_ARR / PWM_VBUS + 0.5f))
+#define FOC_SVPWM_K             (SQRT_3 * PWM_ARR / PWM_VBUS)
+
+static float FOC_Abs(float x)
+{
+    return (x >= 0.0f) ? x : -x;
+}
+
+static float FOC_FastAtan(float x)
+{
+    float ax = FOC_Abs(x);
+
+    if (ax > 1.0f)
+    {
+        float inv = 1.0f / ax;
+        float atan_inv = inv / (1.0f + 0.28f * inv * inv);
+        float result = _PI_2 - atan_inv;
+        return (x >= 0.0f) ? result : -result;
+    }
+
+    return x / (1.0f + 0.28f * x * x);
+}
+
+static int16_t FOC_ClampToQ15(int32_t value)
+{
+    if (value > 32767)
+        return 32767;
+    if (value < -32768)
+        return -32768;
+    return (int16_t)value;
+}
+
+static int16_t FOC_FloatToQ15(float value, float scale)
+{
+    return FOC_ClampToQ15((int32_t)(value * scale));
+}
+
+static int16_t FOC_MulQ15(int16_t a, int16_t b)
+{
+    return FOC_ClampToQ15((((int32_t)a * (int32_t)b) + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+}
+
 /**
  * @brief sat函数
  * 
@@ -33,7 +89,7 @@ float FOC_sat(float x, float boundary)
  */
 float FOC_calc_dynamic_lpf(float speed_rpm)
 {
-    float fe = fabsf(speed_rpm) * POLE_PAIRS / 60.0f;
+    float fe = FOC_Abs(speed_rpm) * POLE_PAIRS / 60.0f;
     
     // 目标：截止频率 = 3~5 倍电频率
     float fc_target = 2.0f * fe;  
@@ -59,24 +115,15 @@ float FOC_calc_dynamic_lpf(float speed_rpm)
  */
 float calc_compensation_angle(float omega_e_est)
 {
-    // omega_e_est: 电角速度 (rad/s)，来自PLL
-    float fe = fabsf(omega_e_est) / _2_PI;
-    
-    // LPF截止频率
-    // float fc = BEMF_LPF / (_2_PI * TS * (1.0f - BEMF_LPF));
+    float fe = FOC_Abs(omega_e_est) / _2_PI;
     float speed_rpm = fe * 60.0f / POLE_PAIRS;
     float actual_lfp = FOC_calc_dynamic_lpf(speed_rpm);
     float fc = actual_lfp / (_2_PI * TS * (1.0f - actual_lfp));
-    
-    // LPF相位延迟（主要部分）
-    float comp = atanf(fe / fc);
-    
-    // 加上数字延迟（可选，通常较小）
-    // comp += 1.5f * _2_PI * fe * TS; // 1.5是指1.5个周期的延迟
-    
-    // 方向：正转加，反转减
-    if (omega_e_est < 0) comp = -comp;
-    
+    float comp = FOC_FastAtan(fe / fc);
+
+    if (omega_e_est < 0.0f)
+        comp = -comp;
+
     return comp;
 }
 
@@ -88,7 +135,7 @@ float calc_compensation_angle(float omega_e_est)
 void FOC_Motor_Cali_Offset(foc_handle_t *motor)
 {
     uint32_t sum_iu = 0, sum_iw = 0;
-    uint16_t cali_cnt = 1000;
+    uint16_t cali_cnt = 200;
     
     // 读取ADC平均值作为零点偏移
     for(uint16_t i=0; i<cali_cnt; i++)
@@ -112,11 +159,11 @@ void FOC_Motor_Cali_Offset(foc_handle_t *motor)
  */
 void FOC_Clark_Transform(foc_handle_t *motor)
 {
-    // 纯电流：仅用IU/iw，Iu=-IU-iw (IU + iw + Iv = 0)
-    motor->i_uvw.w = -motor->i_uvw.v - motor->i_uvw.u;
-    // Clark变换公式（等功率变换）
-    motor->i_ab.alpha = motor->i_uvw.u;
-    motor->i_ab.beta = (motor->i_uvw.u + 2.0f * motor->i_uvw.v) / SQRT_3;
+    float iu = motor->i_uvw.u;
+    float iw = motor->i_uvw.w;
+
+    motor->i_ab.alpha = iu;
+    motor->i_ab.beta = -(iu + 2.0f * iw) * FOC_INV_SQRT3;
 }
 
 /**
@@ -126,9 +173,9 @@ void FOC_Clark_Transform(foc_handle_t *motor)
  */
 void FOC_Park_Transform(foc_handle_t *motor)
 {
-    float cos_theta = cosf(motor->theta);
-    float sin_theta = sinf(motor->theta);
-    // Park变换公式
+    float sin_theta = motor->sin_theta;
+    float cos_theta = motor->cos_theta;
+
     motor->i_dq.d = motor->i_ab.alpha * cos_theta + motor->i_ab.beta * sin_theta;
     motor->i_dq.q = -motor->i_ab.alpha * sin_theta + motor->i_ab.beta * cos_theta;
 }
@@ -140,9 +187,9 @@ void FOC_Park_Transform(foc_handle_t *motor)
  */
 void FOC_InvPark_Transform(foc_handle_t *motor)
 {
-    float cos_theta = cosf(motor->theta);
-    float sin_theta = sinf(motor->theta);
-    // 反Park变换公式
+    float sin_theta = motor->sin_theta;
+    float cos_theta = motor->cos_theta;
+
     motor->u_ab.alpha = motor->u_dq.d * cos_theta - motor->u_dq.q * sin_theta;
     motor->u_ab.beta = motor->u_dq.d * sin_theta + motor->u_dq.q * cos_theta;
 }
@@ -177,25 +224,22 @@ void FOC_PI_Regulator(foc_pid_t *pi, float dt)
  */
 void FOC_SVPWM_Generate(foc_handle_t *motor)
 {
-    float u_alpha = motor->u_ab.alpha;// α // β
+    float u_alpha = motor->u_ab.alpha;
     float u_beta = motor->u_ab.beta;
-    float Ta, Tb, Tc;
-    float Tx = 0.0f, Ty = 0.0f;
+    uint16_t Ta, Tb, Tc;
+    uint16_t Tx = 0.0f, Ty = 0.0f;
     uint8_t sector;
 
-    float k = SQRT_3 * PWM_ARR / PWM_VBUS;
+    // float k = SQRT_3 * PWM_ARR / PWM_VBUS;
     float U1 = u_beta;
     float U2 = -SQRT_3_2 * u_alpha - u_beta / 2.0f;
     float U3 = SQRT_3_2 * u_alpha - u_beta / 2.0f;
 
-    // 扇区判断
-    uint8_t A, B, C;
-    A = U1 > 0 ? 1 : 0;
-    B = U2 > 0 ? 1 : 0;
-    C = U3 > 0 ? 1 : 0;
+    uint8_t A = U1 > 0 ? 1 : 0;
+    uint8_t B = U2 > 0 ? 1 : 0;
+    uint8_t C = U3 > 0 ? 1 : 0;
     uint8_t N = A + B * 2 + C * 4;
 
-    // 判断扇区
     switch (N)
     {
         case 1: sector = 2; break;
@@ -204,53 +248,50 @@ void FOC_SVPWM_Generate(foc_handle_t *motor)
         case 4: sector = 4; break;
         case 5: sector = 3; break;
         case 6: sector = 5; break;
-        default: break;
-    }
-    
-      // 计算切换间隔
-    switch (sector)
-    {
-    case 1:
-        Tx = U2 * k;
-        Ty = U1 * k;
-        break;
-    case 2:
-        Tx = -U2 * k;
-        Ty = -U3 * k;
-        break;
-    case 3:
-        Tx = U1 * k;
-        Ty = U3 * k;
-        break;
-    case 4:
-        Tx = -U1 * k;
-        Ty = -U2 * k;
-        break;
-    case 5:
-        Tx = U3 * k;
-        Ty = U2 * k;
-        break;
-    case 6:
-        Tx = -U3 * k;
-        Ty = -U1 * k;
-        break;
-    default:
-        break;
+        default: sector = 0; break;
     }
 
-    // 过调制处理
-    if(Tx + Ty > PWM_ARR)
+    switch (sector)
+    {
+        case 1:
+            Tx = U2 * FOC_SVPWM_K;
+            Ty = U1 * FOC_SVPWM_K;
+            break;
+        case 2:
+            Tx = -U2 * FOC_SVPWM_K;
+            Ty = -U3 * FOC_SVPWM_K;
+            break;
+        case 3:
+            Tx = U1 * FOC_SVPWM_K;
+            Ty = U3 * FOC_SVPWM_K;
+            break;
+        case 4:
+            Tx = -U1 * FOC_SVPWM_K;
+            Ty = -U2 * FOC_SVPWM_K;
+            break;
+        case 5:
+            Tx = U3 * FOC_SVPWM_K;
+            Ty = U2 * FOC_SVPWM_K;
+            break;
+        case 6:
+            Tx = -U3 * FOC_SVPWM_K;
+            Ty = -U1 * FOC_SVPWM_K;
+            break;
+        default:
+            break;
+    }
+
+    if (Tx + Ty > PWM_ARR)
     {
         float T_sum = Tx + Ty;
         Tx = Tx / T_sum * PWM_ARR;
         Ty = Ty / T_sum * PWM_ARR;
     }
 
-    // 计算占空比
     Ta = (PWM_ARR + Tx + Ty) / 2;
     Tb = Ta - Tx;
     Tc = Tb - Ty;
-    
+
     switch(sector)
     {
         case 1: motor->pwm.duty_u = Ta; motor->pwm.duty_v = Tb; motor->pwm.duty_w = Tc; break;
@@ -259,17 +300,139 @@ void FOC_SVPWM_Generate(foc_handle_t *motor)
         case 4: motor->pwm.duty_u = Tc; motor->pwm.duty_v = Tb; motor->pwm.duty_w = Ta; break;
         case 5: motor->pwm.duty_u = Tb; motor->pwm.duty_v = Tc; motor->pwm.duty_w = Ta; break;
         case 6: motor->pwm.duty_u = Ta; motor->pwm.duty_v = Tc; motor->pwm.duty_w = Tb; break;
-        default: break;
+        default:
+            motor->pwm.duty_u = PWM_ARR / 2;
+            motor->pwm.duty_v = PWM_ARR / 2;
+            motor->pwm.duty_w = PWM_ARR / 2;
+            break;
     }
-    
-    // 占空比限幅（防止超量程）
-    motor->pwm.duty_u = (motor->pwm.duty_u > PWM_ARR) ? PWM_ARR : (motor->pwm.duty_u < 0) ? 0 : motor->pwm.duty_u;
-    motor->pwm.duty_v = (motor->pwm.duty_v > PWM_ARR) ? PWM_ARR : (motor->pwm.duty_v < 0) ? 0 : motor->pwm.duty_v;
-    motor->pwm.duty_w = (motor->pwm.duty_w > PWM_ARR) ? PWM_ARR : (motor->pwm.duty_w < 0) ? 0 : motor->pwm.duty_w;
 
-    // 设置占空比
+    motor->pwm.duty_u = (motor->pwm.duty_u > PWM_ARR) ? PWM_ARR : motor->pwm.duty_u;
+    motor->pwm.duty_v = (motor->pwm.duty_v > PWM_ARR) ? PWM_ARR : motor->pwm.duty_v;
+    motor->pwm.duty_w = (motor->pwm.duty_w > PWM_ARR) ? PWM_ARR : motor->pwm.duty_w;
+
     motor->hal.pwm_set_duty(motor->num, motor->pwm.duty_u, motor->pwm.duty_v, motor->pwm.duty_w);
 }
 
+/*快速三角函数*/
+ 
+#define SIN_COS_TABLE {\
+    0x0000,0x00C9,0x0192,0x025B,0x0324,0x03ED,0x04B6,0x057F,\
+    0x0648,0x0711,0x07D9,0x08A2,0x096A,0x0A33,0x0AFB,0x0BC4,\
+    0x0C8C,0x0D54,0x0E1C,0x0EE3,0x0FAB,0x1072,0x113A,0x1201,\
+    0x12C8,0x138F,0x1455,0x151C,0x15E2,0x16A8,0x176E,0x1833,\
+    0x18F9,0x19BE,0x1A82,0x1B47,0x1C0B,0x1CCF,0x1D93,0x1E57,\
+    0x1F1A,0x1FDD,0x209F,0x2161,0x2223,0x22E5,0x23A6,0x2467,\
+    0x2528,0x25E8,0x26A8,0x2767,0x2826,0x28E5,0x29A3,0x2A61,\
+    0x2B1F,0x2BDC,0x2C99,0x2D55,0x2E11,0x2ECC,0x2F87,0x3041,\
+    0x30FB,0x31B5,0x326E,0x3326,0x33DF,0x3496,0x354D,0x3604,\
+    0x36BA,0x376F,0x3824,0x38D9,0x398C,0x3A40,0x3AF2,0x3BA5,\
+    0x3C56,0x3D07,0x3DB8,0x3E68,0x3F17,0x3FC5,0x4073,0x4121,\
+    0x41CE,0x427A,0x4325,0x43D0,0x447A,0x4524,0x45CD,0x4675,\
+    0x471C,0x47C3,0x4869,0x490F,0x49B4,0x4A58,0x4AFB,0x4B9D,\
+    0x4C3F,0x4CE0,0x4D81,0x4E20,0x4EBF,0x4F5D,0x4FFB,0x5097,\
+    0x5133,0x51CE,0x5268,0x5302,0x539B,0x5432,0x54C9,0x5560,\
+    0x55F5,0x568A,0x571D,0x57B0,0x5842,0x58D3,0x5964,0x59F3,\
+    0x5A82,0x5B0F,0x5B9C,0x5C28,0x5CB3,0x5D3E,0x5DC7,0x5E4F,\
+    0x5ED7,0x5F5D,0x5FE3,0x6068,0x60EB,0x616E,0x61F0,0x6271,\
+    0x62F1,0x6370,0x63EE,0x646C,0x64E8,0x6563,0x65DD,0x6656,\
+    0x66CF,0x6746,0x67BC,0x6832,0x68A6,0x6919,0x698B,0x69FD,\
+    0x6A6D,0x6ADC,0x6B4A,0x6BB7,0x6C23,0x6C8E,0x6CF8,0x6D61,\
+    0x6DC9,0x6E30,0x6E96,0x6EFB,0x6F5E,0x6FC1,0x7022,0x7083,\
+    0x70E2,0x7140,0x719D,0x71F9,0x7254,0x72AE,0x7307,0x735E,\
+    0x73B5,0x740A,0x745F,0x74B2,0x7504,0x7555,0x75A5,0x75F3,\
+    0x7641,0x768D,0x76D8,0x7722,0x776B,0x77B3,0x77FA,0x783F,\
+    0x7884,0x78C7,0x7909,0x794A,0x7989,0x79C8,0x7A05,0x7A41,\
+    0x7A7C,0x7AB6,0x7AEE,0x7B26,0x7B5C,0x7B91,0x7BC5,0x7BF8,\
+    0x7C29,0x7C59,0x7C88,0x7CB6,0x7CE3,0x7D0E,0x7D39,0x7D62,\
+    0x7D89,0x7DB0,0x7DD5,0x7DFA,0x7E1D,0x7E3E,0x7E5F,0x7E7E,\
+    0x7E9C,0x7EB9,0x7ED5,0x7EEF,0x7F09,0x7F21,0x7F37,0x7F4D,\
+    0x7F61,0x7F74,0x7F86,0x7F97,0x7FA6,0x7FB4,0x7FC1,0x7FCD,\
+    0x7FD8,0x7FE1,0x7FE9,0x7FF0,0x7FF5,0x7FF9,0x7FFD,0x7FFE}
+const int16_t hSin_Cos_Table[256] = SIN_COS_TABLE;
+ 
+#define SIN_MASK        0x0300u
+#define U0_90           0x0200u
+#define U90_180         0x0300u
+#define U180_270        0x0000u
+#define U270_360        0x0100u
+ 
+foc_Trig_Components FOC_Trig_Functions(int16_t hAngle)
+{
+ 
+  int32_t shindex;
+  uint16_t uhindex;
+  foc_Trig_Components Local_Components;
+  /* 10 bit index computation  */
+  shindex = ((int32_t)32768 + (int32_t)hAngle);
+  uhindex = ((uint16_t)shindex) >> 6;
+ 
+  switch ((uint16_t)(uhindex) & SIN_MASK)
+  {
+    case U0_90:
+      Local_Components.hSin = hSin_Cos_Table[(uint8_t)(uhindex)];
+      Local_Components.hCos = hSin_Cos_Table[(uint8_t)(0xFFu - (uint8_t)(uhindex))];
+      break;
+ 
+    case U90_180:
+      Local_Components.hSin = hSin_Cos_Table[(uint8_t)(0xFFu - (uint8_t)(uhindex))];
+      Local_Components.hCos = -hSin_Cos_Table[(uint8_t)(uhindex)];
+      break;
+ 
+    case U180_270:
+      Local_Components.hSin = -hSin_Cos_Table[(uint8_t)(uhindex)];
+      Local_Components.hCos = -hSin_Cos_Table[(uint8_t)(0xFFu - (uint8_t)(uhindex))];
+      break;
+ 
+    case U270_360:
+      Local_Components.hSin =  -hSin_Cos_Table[(uint8_t)(0xFFu - (uint8_t)(uhindex))];
+      Local_Components.hCos =  hSin_Cos_Table[(uint8_t)(uhindex)];
+      break;
+    default:
+      break;
+  }
+  return (Local_Components);
+}
 
+int16_t FOC_RadToQ15Angle(float theta)
+{
+    if (theta >= _2_PI)
+        theta -= _2_PI;
+    else if (theta < 0.0f)
+        theta += _2_PI;
+
+    return (int16_t)((uint16_t)(theta * FOC_RAD_TO_Q15_SCALE));
+}
+
+void FOC_GetSinCos(float theta, float *sin_theta, float *cos_theta)
+{
+    foc_Trig_Components trig = FOC_Trig_Functions(FOC_RadToQ15Angle(theta));
+
+    *sin_theta = (float)trig.hSin * FOC_Q15_TO_FLOAT;
+    *cos_theta = (float)trig.hCos * FOC_Q15_TO_FLOAT;
+}
+
+float FOC_FastNorm(float alpha, float beta)
+{
+    float abs_alpha = FOC_Abs(alpha);
+    float abs_beta = FOC_Abs(beta);
+    float max_val = (abs_alpha > abs_beta) ? abs_alpha : abs_beta;
+    float min_val = (abs_alpha > abs_beta) ? abs_beta : abs_alpha;
+
+    return max_val + min_val * FOC_FAST_NORM_GAIN;
+}
+
+void FOC_Updata_Trig(foc_handle_t *motor)
+{
+    motor->trig = FOC_Trig_Functions(FOC_RadToQ15Angle(motor->theta));
+    motor->sin_theta = (float)motor->trig.hSin * FOC_Q15_TO_FLOAT;
+    motor->cos_theta = (float)motor->trig.hCos * FOC_Q15_TO_FLOAT;
+}
+
+float FOC_fmod(float *x, float y)
+{
+    if(*x > y) return *x -= y;
+    else if(*x < 0) return *x += y;
+    else return *x;
+}
 

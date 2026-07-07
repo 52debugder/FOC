@@ -1,0 +1,9 @@
+foc\field_weakening.o: ..\UserCode\foc_lib\src\field_weakening.c
+foc\field_weakening.o: ../UserCode/foc_lib/inc/field_weakening.h
+foc\field_weakening.o: ../UserCode/foc_lib/inc/foc_types.h
+foc\field_weakening.o: D:\keil5\ARM\ARMCC\Bin\..\include\stdint.h
+foc\field_weakening.o: ../UserCode/foc_lib/inc/foc_config.h
+foc\field_weakening.o: D:\keil5\ARM\ARMCC\Bin\..\include\math.h
+foc\field_weakening.o: ../UserCode/foc_lib/inc/foc_hal.h
+foc\field_weakening.o: ../UserCode/foc_lib/inc/foc_math.h
+foc\field_weakening.o: ../UserCode/foc_lib/inc/foc_utils.h
