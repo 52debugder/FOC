@@ -30,7 +30,6 @@
 /* USER CODE BEGIN Includes */
 #include "app_comm.h"
 #include "app_motor.h"
-#include "as5600.h"
 #include "foc.h"
 /* USER CODE END Includes */
 
@@ -105,7 +104,8 @@ int main(void)
   Foc_Init(1, &foc_hal);
 
   HAL_Delay(50); // 延时防止还没有初始化完就进入中断
-  // uint8_t uart_test_data[] = {'2'};  
+  Foc_Set_Speed(1, 300.0f);
+  // uint8_t uart_test_data[] = {'2'};
   // float angle = 1.0f;
   /* USER CODE END 2 */
 
@@ -119,7 +119,6 @@ int main(void)
     //   app_uart_send(uart_test_data, len);
     // }
     app_foc_mainloop();
-    Foc_Set_Speed(1, 300);
     app_debug_print();
     // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 

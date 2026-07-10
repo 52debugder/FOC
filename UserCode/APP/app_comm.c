@@ -1,4 +1,5 @@
 #include "app_comm.h"
+#include "app_motor.h"
 #include "comm_uart.h"
 #include "comm_iic.h"
 
@@ -13,15 +14,6 @@ typedef struct
 
 static volatile uint8_t app_debug_sample_pending;
 static uint8_t app_debug_sample_counter;
-
-extern as5600_magnet_state_t magnet_state;
-extern uint8_t as5600_status;
-extern uint8_t as5600_agc;
-extern uint16_t as5600_magnitude;
-extern float angle;
-extern float speed;
-
-extern uint32_t count;
 
 void app_uart_send(const uint8_t *p_data, uint16_t length)
 {
@@ -58,13 +50,15 @@ void app_debug_print(void)
     if ((app_debug_sample_pending == 0U) || (comm_uart_tx_is_idle() == 0U))
         return;
 
-    foc_handle_t *FOC_Motor = Foc_GetStruct(1);
+    app_motor_telemetry_t telemetry;
     app_debug_sample_t sample;
 
+    app_motor_get_telemetry(1, &telemetry);
+
     __disable_irq();
-    sample.u = FOC_Motor->speed_ramp_target;
-    sample.v = FOC_Motor->sensor_mech.speed;
-    sample.w = (float)count;
+    sample.u = telemetry.target_speed_rpm;
+    sample.v = telemetry.measured_speed_rpm;
+    sample.w = (float)telemetry.sample_time_us;
     app_debug_sample_pending = 0U;
     __enable_irq();
 

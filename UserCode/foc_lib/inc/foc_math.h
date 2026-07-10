@@ -17,9 +17,6 @@ extern "C" {
 #define _PI_2                   1.570796326f
 #define SQRT_3                  1.732050807f
 #define SQRT_3_2                0.866025403f
-#define MECHANICAL_SPEED        (TARGET_SPEED * _2_PI / 60.0f)
-#define ELEC_SPEED              (MECHANICAL_SPEED * POLE_PAIRS)
-#define _2_PI_POLE_PAIRS        (_2_PI * POLE_PAIRS)
 
 float FOC_sat(float x, float boundary);
 float FOC_calc_dynamic_lpf(float speed_rpm);

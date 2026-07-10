@@ -114,7 +114,7 @@ void HFI_Select_Angle(foc_handle_t *motor, float dt)
         float angle_diff = HFI_Wrap_Diff(motor->theta_hfi - motor->theta_Observer);
         motor->theta = HFI_Wrap_Angle(motor->theta_Observer + angle_diff * motor->hfi_blend);
 
-        float hfi_speed_rpm = motor->speed_hfi_observer * 60.0f / _2_PI_POLE_PAIRS;
+        float hfi_speed_rpm = FOC_ElecRadPerSecToMechRpm(motor->speed_hfi_observer);
         motor->speed = smo_speed_rpm * (1.0f - motor->hfi_blend) + hfi_speed_rpm * motor->hfi_blend;
     }
     else

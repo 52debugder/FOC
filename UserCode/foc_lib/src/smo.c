@@ -80,7 +80,7 @@ void BEMF_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     if(mode == MOTOR_STATE_CLOSE)
         motor->theta = motor->theta_Observer;
     
-    motor->speed = motor->speed_observer * 60.0f / _2_PI_POLE_PAIRS;
+    motor->speed = FOC_ElecRadPerSecToMechRpm(motor->speed_observer);
 }
 
 /**
@@ -113,9 +113,9 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     
     // ===== 第4步：BEMF = 切换项的低通滤波 =====
     #ifdef FOC_PLL_ENABLE
-    float speed_rpm = (motor->speed_observer >= 0.0f ? motor->speed_observer : -motor->speed_observer) * 60.0f / _2_PI_POLE_PAIRS;
+    float speed_rpm = FOC_AbsElecRadPerSecToMechRpm(motor->speed_observer);
     #else
-    float speed_rpm = (motor->speed >= 0.0f ? motor->speed : -motor->speed) * 60.0f / _2_PI_POLE_PAIRS;
+    float speed_rpm = (motor->speed >= 0.0f) ? motor->speed : -motor->speed;
     #endif // FOC_PLL_ENABLE
     
     motor->e_ab.alpha += (z_alpha - motor->e_ab.alpha) * FOC_calc_dynamic_lpf(speed_rpm);
@@ -167,7 +167,7 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     if(mode == MOTOR_STATE_CLOSE)
         motor->theta = motor->theta_Observer;
     
-    motor->speed = motor->speed_observer * 60.0f / _2_PI_POLE_PAIRS;
+    motor->speed = FOC_ElecRadPerSecToMechRpm(motor->speed_observer);
 
     #endif // FOC_PLL_ENABLE
 }

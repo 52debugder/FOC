@@ -42,6 +42,7 @@ foc\app_comm.o: ../UserCode/foc_lib/inc/foc_math.h
 foc\app_comm.o: ../UserCode/foc_lib/inc/foc_utils.h
 foc\app_comm.o: ../UserCode/foc_lib/inc/field_weakening.h
 foc\app_comm.o: ../UserCode/foc_lib/inc/hfi.h
+foc\app_comm.o: ../UserCode/APP/app_motor.h
 foc\app_comm.o: ../UserCode/Device/as5600.h
 foc\app_comm.o: ../UserCode/Communication/comm_uart.h
 foc\app_comm.o: D:\keil5\ARM\ARMCC\Bin\..\include\stdio.h

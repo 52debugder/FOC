@@ -50,5 +50,5 @@ foc\main.o: ../UserCode/foc_lib/inc/foc_math.h
 foc\main.o: ../UserCode/foc_lib/inc/foc_utils.h
 foc\main.o: ../UserCode/foc_lib/inc/field_weakening.h
 foc\main.o: ../UserCode/foc_lib/inc/hfi.h
-foc\main.o: ../UserCode/Device/as5600.h
 foc\main.o: ../UserCode/APP/app_motor.h
+foc\main.o: ../UserCode/Device/as5600.h

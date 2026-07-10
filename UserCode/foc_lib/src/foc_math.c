@@ -10,6 +10,7 @@
  */
 
 #include "foc_math.h"
+#include "stm32f1xx_hal.h"
 
 #define FOC_Q15_TO_FLOAT        (1.0f / 32768.0f)
 #define FOC_RAD_TO_Q15_SCALE    (65536.0f / _2_PI)
@@ -48,25 +49,6 @@ static float FOC_FastAtan(float x)
     return x / (1.0f + 0.28f * x * x);
 }
 
-static int16_t FOC_ClampToQ15(int32_t value)
-{
-    if (value > 32767)
-        return 32767;
-    if (value < -32768)
-        return -32768;
-    return (int16_t)value;
-}
-
-static int16_t FOC_FloatToQ15(float value, float scale)
-{
-    return FOC_ClampToQ15((int32_t)(value * scale));
-}
-
-static int16_t FOC_MulQ15(int16_t a, int16_t b)
-{
-    return FOC_ClampToQ15((((int32_t)a * (int32_t)b) + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
-}
-
 /**
  * @brief sat函数
  * 
@@ -89,7 +71,7 @@ float FOC_sat(float x, float boundary)
  */
 float FOC_calc_dynamic_lpf(float speed_rpm)
 {
-    float fe = FOC_Abs(speed_rpm) * POLE_PAIRS / 60.0f;
+    float fe = FOC_Abs(FOC_MechRpmToElecRadPerSec(speed_rpm)) / FOC_TWO_PI_F;
     
     // 目标：截止频率 = 3~5 倍电频率
     float fc_target = 2.0f * fe;  
@@ -116,7 +98,7 @@ float FOC_calc_dynamic_lpf(float speed_rpm)
 float calc_compensation_angle(float omega_e_est)
 {
     float fe = FOC_Abs(omega_e_est) / _2_PI;
-    float speed_rpm = fe * 60.0f / POLE_PAIRS;
+    float speed_rpm = FOC_ElecRadPerSecToMechRpm(FOC_Abs(omega_e_est));
     float actual_lfp = FOC_calc_dynamic_lpf(speed_rpm);
     float fc = actual_lfp / (_2_PI * TS * (1.0f - actual_lfp));
     float comp = FOC_FastAtan(fe / fc);

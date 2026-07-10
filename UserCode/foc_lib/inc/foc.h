@@ -9,7 +9,6 @@
 #include "foc_math.h"
 #include "field_weakening.h"
 #include "hfi.h"
-#include "as5600.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -31,7 +30,6 @@ foc_state_t Foc_Set_Control_Mode(uint8_t motor_num, foc_control_mode_t mode);
 foc_state_t Foc_Zero_Position(uint8_t motor_num);
 float Foc_Get_Position(uint8_t motor_num);
 foc_handle_t *Foc_GetStruct(uint8_t motor_num);
-void Foc_SetStruct(foc_handle_t *Set_Motor, uint8_t motor_num);
 #ifdef HFI_ENABLE
 foc_state_t Foc_HFI_Enable(uint8_t motor_num);
 foc_state_t Foc_HFI_Disable(uint8_t motor_num);

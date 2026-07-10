@@ -190,12 +190,14 @@ static void foc_hal_adc_get_value(uint8_t num, uint16_t *adc_u, uint16_t *adc_v,
     switch(num)
     {
         case 1:
+        {
             // SCB_InvalidateDCache_by_Addr((uint32_t*)adc1_buf, sizeof(adc1_buf));
             uint16_t raw_ch4 = hadc1.Instance->JDR1;
             uint16_t raw_ch5 = hadc1.Instance->JDR2;
             foc_hal_adc_filter_sample(num, raw_ch5, raw_ch4, adc_u, adc_w);
             *adc_v = 0;
             break;
+        }
         // case 2:
         //     SCB_InvalidateDCache_by_Addr((uint32_t*)adc2_buf, sizeof(adc2_buf));
         //     foc_hal_adc_filter_sample(num, adc2_buf[1], adc2_buf[0], adc_u, adc_w);

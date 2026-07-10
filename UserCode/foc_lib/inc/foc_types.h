@@ -150,14 +150,14 @@ typedef struct
     foc_pid_t               pi_position;        // 位置PI
     foc_pid_t               pi_pll;             // 锁相环PI
 
-    uint16_t                i_adc_u;            // adc得到的三相电流
-    uint16_t                i_adc_v;            // adc得到的三相电流
-    uint16_t                i_adc_w;            // adc得到的三相电流
+    uint16_t                i_adc_u;            // ADC锁存后的相电流采样原始计数
+    uint16_t                i_adc_v;            // ADC锁存后的相电流采样原始计数
+    uint16_t                i_adc_w;            // ADC锁存后的相电流采样原始计数
     float                   theta;              // 转子电角度(rad)
-    float                   speed;              // 电机转速(rpm)
+    float                   speed;              // 电机机械转速(rpm)
     float                   theta_Observer;     // 观测器得到的转子电角度(rad)
     float                   theta_obs_prev;     // 上一拍观测角度，用于微分估速
-    float                   speed_observer;     // 观测器得到的电机转速(rpm)
+    float                   speed_observer;     // 观测器得到的电角速度(rad/s)
     float                   speed_sign;         // 电机转子正转还是反转
 
     float                   id_fw;              // 弱磁注入的负 id（弱磁控制器输出，≤0）

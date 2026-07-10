@@ -2,8 +2,8 @@
  * @file foc.c
  * @author MING
  * @brief foc调用库
- * @version 0.7
- * @date 2026-06-01
+ * @version 1.0
+ * @date 2026-07-10
  * 
  * @copyright Copyright (c) 2026
  * 
@@ -12,10 +12,11 @@
 #include "foc.h"
 
 static foc_handle_t FOC_Motor[MAX_MOTOR_NUM + 1] = {0};
+#if defined(FOC_OPEN_I_DEBUG_EN) || defined(FOC_CLOSE_I_DEBUG_EN)
 static uint32_t vofa_cnt = 0;
+#endif
 
 #define FOC_PI_F 3.14159265358979323846f
-#define FOC_TWO_PI_F 6.28318530717958647692f
 #define FOC_ALIGN_STABLE_DELTA_RAD 0.01f
 #define FOC_ALIGN_STABLE_COUNT 200U
 
@@ -39,14 +40,75 @@ static float foc_wrap_delta_pm_pi(float delta)
     return delta;
 }
 
-/**
- * @brief FOC位置环状态更新
- * 
- * @param motor 
- */
-static void Foc_Update_Position(foc_handle_t *motor)
+static foc_state_t Foc_Preprocess_CurrentSample(foc_handle_t *motor)
 {
-    AS5600_GetMechanicalAngle(&motor->position);
+    foc_state_t foc_state = FOC_OK;
+
+    motor->i_uvw.u = (float)((int32_t)motor->i_adc_u - motor->i_cali_uvw.u) * CURRENT_SCALE;
+    motor->i_uvw.v = 0.0f;
+    motor->i_uvw.w = (float)((int32_t)motor->i_adc_w - motor->i_cali_uvw.w) * CURRENT_SCALE;
+
+    if (motor->i_uvw.u >= CURRENT_LIMIT)
+    {
+        motor->i_uvw.u = CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+    else if (motor->i_uvw.u <= -CURRENT_LIMIT)
+    {
+        motor->i_uvw.u = -CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+
+    if (motor->i_uvw.w >= CURRENT_LIMIT)
+    {
+        motor->i_uvw.w = CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+    else if (motor->i_uvw.w <= -CURRENT_LIMIT)
+    {
+        motor->i_uvw.w = -CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+
+    return foc_state;
+}
+
+static void Foc_SetElectricalAngle(foc_handle_t *motor, float theta)
+{
+    motor->theta = foc_wrap_angle_0_2pi(theta);
+}
+
+static void Foc_RefreshTrigCache(foc_handle_t *motor)
+{
+    FOC_Updata_Trig(motor);
+}
+
+static void Foc_AdvanceOpenLoopAngle(foc_handle_t *motor, float dt)
+{
+    float theta = motor->theta;
+
+    if (motor->target_speed > 0.0f)
+        theta += OPEN_ELEC_SPEED * dt;
+    else if (motor->target_speed < 0.0f)
+        theta -= OPEN_ELEC_SPEED * dt;
+
+    Foc_SetElectricalAngle(motor, theta);
+}
+
+static uint8_t Foc_LoadClosedLoopSensorAngle(foc_handle_t *motor)
+{
+    if ((motor->trig_sample_valid == 0U) || (motor->sensor_mech.sample_seq != motor->trig_sample_seq))
+    {
+        float mech_angle = foc_wrap_angle_0_2pi(motor->sensor_mech.angle - motor->sensor_mech.zero_offset);
+
+        Foc_SetElectricalAngle(motor, FOC_MechAngleToElecAngle(mech_angle));
+        motor->speed = motor->sensor_mech.speed;
+        motor->trig_sample_seq = motor->sensor_mech.sample_seq;
+        motor->trig_sample_valid = 1U;
+        return 1U;
+    }
+
+    return 0U;
 }
 
 /**
@@ -207,10 +269,6 @@ foc_state_t Foc_Loop(uint8_t motor_num)
     if (motor->init_done != 1)
         return FOC_ERR_NOT_INIT; // 初始化未完成，直接返回
 
-#ifdef FOC_POSITION_PI_EN
-    Foc_Update_Position(motor);
-#endif
-
     switch (motor->mode)
     {
     case MOTOR_STATE_IDLE: // 空状态
@@ -269,8 +327,9 @@ foc_state_t Foc_Loop(uint8_t motor_num)
         if(motor->state_timer > 4000)
 #endif
 
-        { // 持续约 100ms (假设频率 18kHz)
+        {
             motor->state_timer = 0;
+
 #ifdef HFI_ENABLE // 使能高频注入
             if (motor->hfi_enable && motor->control_mode == FOC_CONTROL_POSITION)
             {
@@ -303,8 +362,7 @@ foc_state_t Foc_Loop(uint8_t motor_num)
         }
         break;
 
-    case MOTOR_STATE_OPEN:
-        // 2. 开环启动：按设定转速匀速旋转
+    case MOTOR_STATE_OPEN: // 开环启动：按设定转速匀速旋转
         Foc_Open_Loop(motor, TS);
 
         // ALIGN 期间若遥控器归零 → 回 IDLE
@@ -328,7 +386,7 @@ foc_state_t Foc_Loop(uint8_t motor_num)
 #ifdef FOC_CLOSE_LOOP_EN // 闭环使能
         {
             // 观测速度与开环速度接近才切换
-            float speed_rpm = motor->speed_observer * 60.0f / _2_PI_POLE_PAIRS; // 把电角速度转换为圈每秒
+            float speed_rpm = FOC_ElecRadPerSecToMechRpm(motor->speed_observer);
             float speed_diff = fabsf(fabsf(speed_rpm) - fabsf(OPEN_LOOP_SPEED_RPM));
             if (motor->state_timer > 8500 && speed_diff < OPEN_LOOP_SPEED_RPM * 0.1f && fabs(angle_error) < 0.1f)
             {
@@ -343,9 +401,9 @@ foc_state_t Foc_Loop(uint8_t motor_num)
                 motor->pi_q.output = PWM_VBUS * 0.55f;
 
                 if(motor->target_speed > 0)
-                    motor->speed_ramp_target = fabsf(motor->speed_observer) * 60.0f / (_2_PI * POLE_PAIRS) + 50.0f;
+                    motor->speed_ramp_target = FOC_AbsElecRadPerSecToMechRpm(motor->speed_observer) + 50.0f;
                 else
-                    motor->speed_ramp_target = -fabsf(motor->speed_observer) * 60.0f / (_2_PI * POLE_PAIRS) + 50.0f;
+                    motor->speed_ramp_target = -FOC_AbsElecRadPerSecToMechRpm(motor->speed_observer) + 50.0f;
 
                 motor->theta_Observer = motor->theta;
                 motor->theta_obs_prev = motor->theta;
@@ -429,7 +487,7 @@ foc_state_t Foc_Align_Loop(foc_handle_t *motor, float dt)
     // 1. 定位阶段：给 D 轴施加固定电压，Q 轴为 0，强制转子对齐到 0 度
     motor->u_dq.d = 2.0f; // 2V 左右，根据电机阻抗微调
     motor->u_dq.q = 0.0f;
-    motor->theta = 0.0f;
+    Foc_SetElectricalAngle(motor, 0.0f);
     motor->pi_pll.integral = 0;
     motor->theta_Observer = 0.0f;
     motor->theta_obs_prev = 0.0f;
@@ -477,7 +535,7 @@ foc_state_t Foc_Align_Loop(foc_handle_t *motor, float dt)
         motor->sensor_mech.align_has_prev = 0U;
     }
     
-    FOC_Updata_Trig(motor);
+    Foc_RefreshTrigCache(motor);
     FOC_InvPark_Transform(motor);
     FOC_SVPWM_Generate(motor);
     return FOC_OK;
@@ -492,33 +550,7 @@ foc_state_t Foc_Align_Loop(foc_handle_t *motor, float dt)
  */
 foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
 {
-    foc_state_t foc_state = FOC_OK;
-    // 1. 电流校准（减去零点偏移）
-    motor->i_uvw.u = (float)((int32_t)motor->i_adc_u - motor->i_cali_uvw.u) * CURRENT_SCALE;
-    motor->i_uvw.w = (float)((int32_t)motor->i_adc_w - motor->i_cali_uvw.w) * CURRENT_SCALE;
-    // 2. 电流限幅（保护电机）
-
-    if (motor->i_uvw.u >= CURRENT_LIMIT)
-    {
-        motor->i_uvw.u = CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-    else if (motor->i_uvw.u <= -CURRENT_LIMIT)
-    {
-        motor->i_uvw.u = -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-
-    if (motor->i_uvw.w >= CURRENT_LIMIT)
-    {
-        motor->i_uvw.w = CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-    else if (motor->i_uvw.w <= -CURRENT_LIMIT)
-    {
-        motor->i_uvw.w = -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
+    foc_state_t foc_state = Foc_Preprocess_CurrentSample(motor);
 
     // 3. Clark变换，
     FOC_Clark_Transform(motor);
@@ -582,24 +614,16 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
     motor->u_dq.d = motor->pi_d.output;
     motor->u_dq.q = motor->pi_q.output;
 
-    motor->theta = 0;
+    Foc_SetElectricalAngle(motor, 0.0f);
+    Foc_RefreshTrigCache(motor);
 #else
-    FOC_Updata_Trig(motor);
+    Foc_RefreshTrigCache(motor);
     FOC_Park_Transform(motor);
 
     motor->u_dq.d = 0.0f;             // 通常d轴电流设为0以获得最大转矩效率
     motor->u_dq.q = PWM_VBUS * 0.35f; // q轴电压与期望转矩相关, 电压范围为母线电压的30%~50%
 
-    if(motor->target_speed > 0)
-        motor->theta += OPEN_ELEC_SPEED * dt;     // 电角度递增
-    else if (motor->target_speed < 0)
-        motor->theta -= OPEN_ELEC_SPEED * dt;
-
-    motor->theta = FOC_fmod(&motor->theta, _2_PI); // 限制在0~2π范围内，保持归一化
-    if(motor->theta > _2_PI)
-        motor->theta -= _2_PI;
-    if (motor->theta < 0)
-        motor->theta += _2_PI; // 处理负数情况
+    Foc_AdvanceOpenLoopAngle(motor, dt);
 #endif
 
     // 3. 反Park变换
@@ -718,58 +742,32 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
 
     pi_limit_sq = pi_limit * pi_limit;
 
-    // 1. 电流校准（减去零点偏移）
-    motor->i_uvw.u = (float)((int32_t)motor->i_adc_u - motor->i_cali_uvw.u) * CURRENT_SCALE;
-    motor->i_uvw.w = (float)((int32_t)motor->i_adc_w - motor->i_cali_uvw.w) * CURRENT_SCALE;
-    // 2. 电流限幅（保护电机）
+    // 电流前处理：减零偏、转安培、限幅
+    foc_state = Foc_Preprocess_CurrentSample(motor);
 
-    if (motor->i_uvw.u >= CURRENT_LIMIT)
-    {
-        motor->i_uvw.u = CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-    else if (motor->i_uvw.u <= -CURRENT_LIMIT)
-    {
-        motor->i_uvw.u = -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-
-    if (motor->i_uvw.w >= CURRENT_LIMIT)
-    {
-        motor->i_uvw.w = CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-    else if (motor->i_uvw.w <= -CURRENT_LIMIT)
-    {
-        motor->i_uvw.w = -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-
-    // 3. Clark变换，
+    // Clark变换，
     FOC_Clark_Transform(motor);
 
+    uint8_t trig_dirty = 0U;
+
 #ifdef FOC_SMO_EN // 观测器使能
-    // 4. MRAS观测器推算转子位置，得到电角度和转速
+    // MRAS观测器推算转子位置，得到电角度和转速
     SMO_Observer(motor, dt, MOTOR_STATE_CLOSE);
+    trig_dirty = 1U;
 #else
-    if ((motor->trig_sample_valid == 0U) || (motor->sensor_mech.sample_seq != motor->trig_sample_seq))
-    {
-        float mech_angle = foc_wrap_angle_0_2pi(motor->sensor_mech.angle - motor->sensor_mech.zero_offset);
-        float e_angle = mech_angle * POLE_PAIRS;
-        motor->theta = foc_wrap_angle_0_2pi(e_angle - FOC_ELECTRICAL_ANGLE_OFFSET);
-        motor->speed = motor->sensor_mech.speed;
-        FOC_Updata_Trig(motor);
-        motor->trig_sample_seq = motor->sensor_mech.sample_seq;
-        motor->trig_sample_valid = 1U;
-    }
+    trig_dirty = Foc_LoadClosedLoopSensorAngle(motor);
 #endif
 
 #ifdef HFI_ENABLE // HFI使能
-    HFI_Select_Angle(motor, dt);
-    FOC_Updata_Trig(motor);
-#elif defined(FOC_SMO_EN)
-    FOC_Updata_Trig(motor);
+    if (motor->hfi_enable || trig_dirty != 0U)
+    {
+        HFI_Select_Angle(motor, dt);
+        trig_dirty = 1U;
+    }
 #endif
+
+    if (trig_dirty != 0U)
+        Foc_RefreshTrigCache(motor);
 
     FOC_Park_Transform(motor);
 #ifdef HFI_ENABLE // HFI使能
@@ -1062,11 +1060,6 @@ float Foc_Get_Position(uint8_t motor_num)
 foc_handle_t *Foc_GetStruct(uint8_t motor_num)
 {
     return &FOC_Motor[motor_num];
-}
-
-void Foc_SetStruct(foc_handle_t *Set_Motor, uint8_t motor_num)
-{
-    FOC_Motor[motor_num] = *Set_Motor;
 }
 
 #ifdef HFI_ENABLE

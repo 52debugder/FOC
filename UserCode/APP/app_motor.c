@@ -12,58 +12,43 @@
 #include "app_motor.h"
 #include "app_comm.h"
 
-#define APP_MOTOR_PI_F 3.14159265358979323846f
-#define APP_MOTOR_TWO_PI_F 6.28318530717958647692f
 #define APP_MOTOR_SPEED_LPF_ALPHA 0.05f
 
-as5600_magnet_state_t magnet_state;
-float angle;
-float speed;
-uint8_t as5600_status;
-uint8_t as5600_agc;
-uint16_t as5600_magnitude;
-
-uint32_t count;
+static as5600_magnet_state_t app_motor_magnet_state;
+static float app_motor_last_angle_rad;
+static float app_motor_last_speed_rpm;
+static uint8_t app_motor_as5600_status;
+static uint8_t app_motor_as5600_agc;
+static uint16_t app_motor_as5600_magnitude;
+static uint32_t app_motor_last_tick_us;
 
 static float app_motor_wrap_delta_pm_pi(float delta)
 {
-    while (delta > APP_MOTOR_PI_F)
-        delta -= APP_MOTOR_TWO_PI_F;
-    while (delta < -APP_MOTOR_PI_F)
-        delta += APP_MOTOR_TWO_PI_F;
+    while (delta > PI)
+        delta -= FOC_TWO_PI_F;
+    while (delta < -PI)
+        delta += FOC_TWO_PI_F;
 
     return delta;
-}
-
-void app_foc_init(uint8_t motor_num, const foc_hal_t *hal_interface)
-{
-    foc_handle_t *FOC_Motor = Foc_GetStruct(motor_num);
-    FOC_Motor->num = motor_num;
-    Foc_ParamInit(FOC_Motor, hal_interface); // FOC初始化
-
-    FOC_Motor->hal.pwm_start(motor_num);
-    FOC_Motor_Cali_Offset(FOC_Motor);        // 电机零点校准（上电静止时执行）
-    FOC_Motor->hal.drv_enable(motor_num);            // 驱动使能
-    FOC_Motor->mode = MOTOR_STATE_IDLE;
-    FOC_Motor->state_timer = 0;
-    FOC_Motor->init_done = 1;
-    Foc_SetStruct(FOC_Motor, motor_num);
 }
 
 void app_foc_mainloop(void)
 {
     static uint32_t last_as5600_tick = 0;
     uint32_t now = App_GetMicroseconds();
-    count = now;
     uint32_t elapsed_us = now - last_as5600_tick;
+
+    app_motor_last_tick_us = now;
 
     if(elapsed_us >= 1000U)
     {
+        float dt = (float)elapsed_us * 1e-6f;
         last_as5600_tick = now;
-        foc_handle_t *foc_motor =  Foc_GetStruct(1);
+        foc_handle_t *foc_motor = Foc_GetStruct(1);
         if(foc_motor->init_done)
         {
             as5600_data_t as5600_data;
+            float angle_rad;
 
             if (AS5600_ReadData(&as5600_data) != HAL_OK)
             {
@@ -74,55 +59,72 @@ void app_foc_mainloop(void)
                 return;
             }
 
-            angle = AS5600_RawToRad(as5600_data.raw_angle);
+            angle_rad = AS5600_RawToRad(as5600_data.raw_angle);
 
-            __disable_irq();
-            as5600_status = as5600_data.status;
-            as5600_agc = as5600_data.agc;
-            as5600_magnitude = as5600_data.magnitude;
-            magnet_state = as5600_data.magnet_state;
-            __enable_irq();
-
-            if ((magnet_state == AS5600_MAGNET_NOT_DETECTED) ||
-                (magnet_state == AS5600_MAGNET_TOO_STRONG))
+            if ((as5600_data.magnet_state == AS5600_MAGNET_NOT_DETECTED) ||
+                (as5600_data.magnet_state == AS5600_MAGNET_TOO_STRONG))
             {
                 __disable_irq();
+                app_motor_as5600_status = as5600_data.status;
+                app_motor_as5600_agc = as5600_data.agc;
+                app_motor_as5600_magnitude = as5600_data.magnitude;
+                app_motor_magnet_state = as5600_data.magnet_state;
                 foc_motor->sensor_mech.speed = 0.0f;
                 foc_motor->sensor_mech.vaild = 0.0f;
                 __enable_irq();
                 return;
             }
 
-            // if (foc_motor->sensor_mech.vaild != 0.0f)
-            // {
-            //     float delta = app_motor_wrap_delta_pm_pi(angle - foc_motor->sensor_mech.angle);
-            //     float dt = (float)elapsed_us * 0.001f;
-            //     float speed_raw = delta * (60.0f / (APP_MOTOR_TWO_PI_F * dt));
-            //     speed = foc_motor->sensor_mech.speed + APP_MOTOR_SPEED_LPF_ALPHA * (speed_raw - foc_motor->sensor_mech.speed);
-            // }
+            __disable_irq();
+            app_motor_as5600_status = as5600_data.status;
+            app_motor_as5600_agc = as5600_data.agc;
+            app_motor_as5600_magnitude = as5600_data.magnitude;
+            app_motor_magnet_state = as5600_data.magnet_state;
+            app_motor_last_angle_rad = angle_rad;
 
-            float speed_new = 0.0f;
             if (foc_motor->sensor_mech.vaild != 0.0f)
             {
-                float delta = app_motor_wrap_delta_pm_pi(angle - foc_motor->sensor_mech.angle);
-                float dt = (float)elapsed_us * 1e-6f;
-                float speed_raw = -delta * (60.0f / (APP_MOTOR_TWO_PI_F * dt));
-                speed_new = foc_motor->sensor_mech.speed + APP_MOTOR_SPEED_LPF_ALPHA * (speed_raw - foc_motor->sensor_mech.speed);
+                float delta = app_motor_wrap_delta_pm_pi(angle_rad - foc_motor->sensor_mech.angle);
+                float speed_raw = -FOC_MechRadPerSecToRpm(delta / dt);
+                app_motor_last_speed_rpm = foc_motor->sensor_mech.speed + APP_MOTOR_SPEED_LPF_ALPHA * (speed_raw - foc_motor->sensor_mech.speed);
+                foc_motor->position_raw += delta;
+            }
+            else
+            {
+                app_motor_last_speed_rpm = 0.0f;
             }
 
-            speed = speed_new;
-
-            __disable_irq();
-            foc_motor->sensor_mech.angle = angle;
-            foc_motor->sensor_mech.speed = speed;
+            foc_motor->sensor_mech.angle = angle_rad;
+            foc_motor->sensor_mech.speed = app_motor_last_speed_rpm;
+            foc_motor->position = foc_motor->position_raw - foc_motor->position_offset;
             foc_motor->sensor_mech.sample_seq++;
             foc_motor->sensor_mech.vaild = 1.0f;
             __enable_irq();
 
-            Foc_Update_SpeedLoop(1, (float)elapsed_us * 1e-6f);
+            Foc_Update_SpeedLoop(1, dt);
         }
     }
 
+}
+
+void app_motor_get_telemetry(uint8_t motor_num, app_motor_telemetry_t *telemetry)
+{
+    foc_handle_t *motor = Foc_GetStruct(motor_num);
+
+    if (telemetry == NULL)
+        return;
+
+    __disable_irq();
+    telemetry->target_speed_rpm = motor->speed_ramp_target;
+    telemetry->measured_speed_rpm = motor->sensor_mech.speed;
+    telemetry->mechanical_angle_rad = app_motor_last_angle_rad;
+    telemetry->sensor_valid = motor->sensor_mech.vaild;
+    telemetry->sample_time_us = app_motor_last_tick_us;
+    telemetry->as5600_status = app_motor_as5600_status;
+    telemetry->as5600_agc = app_motor_as5600_agc;
+    telemetry->as5600_magnitude = app_motor_as5600_magnitude;
+    telemetry->magnet_state = app_motor_magnet_state;
+    __enable_irq();
 }
 
 uint32_t App_GetMicroseconds(void)
@@ -136,7 +138,6 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
     if(hadc->Instance == ADC1)
     {
-        // static uint16_t isr_meas_cnt = 0;
         foc_handle_t *foc_motor = Foc_GetStruct(1);
 
         GPIOB->BSRR = GPIO_PIN_0;
@@ -157,14 +158,6 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
         }
 
         GPIOB->BSRR = GPIO_PIN_0 << 16;
-
-        // ISR频率测量：每200次Foc_Loop翻转PB1
-        // 示波器测PB1频率 → ISR频率 = PB1频率 × 400
-        // isr_meas_cnt++;
-        // if (isr_meas_cnt >= 200) {
-        //     isr_meas_cnt = 0;
-        //     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_1);
-        // }
     }
 }
 
