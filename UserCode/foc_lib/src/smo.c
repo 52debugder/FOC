@@ -22,8 +22,11 @@ float angle_error;
  */
 void BEMF_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
 {
-    float e_alpha_raw = motor->u_ab.alpha - MOTOR_R * motor->i_ab.alpha ;
-    float e_beta_raw  = motor->u_ab.beta  - MOTOR_R * motor->i_ab.beta  ;
+    const float motor_r_pu = MOTOR_R * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V;
+    const float e_amp_min = FOC_VoltageToPu(0.5f);
+    const float e_amp_low = FOC_VoltageToPu(0.1f);
+    float e_alpha_raw = motor->u_ab.alpha - motor_r_pu * motor->i_ab.alpha;
+    float e_beta_raw  = motor->u_ab.beta  - motor_r_pu * motor->i_ab.beta;
     
     motor->e_ab.alpha += (e_alpha_raw - motor->e_ab.alpha) * BEMF_LPF;
     motor->e_ab.beta  += (e_beta_raw  - motor->e_ab.beta)  * BEMF_LPF;
@@ -35,21 +38,11 @@ void BEMF_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
 
     float e_amp = FOC_FastNorm(motor->e_ab.alpha, motor->e_ab.beta);
     
-    // 软限幅
-    float e_amp_min = 0.5f;
     if (e_amp > e_amp_min)
     {
         angle_error /= e_amp;
     }
-    else if (e_amp > 0.1f)
-    {
-        angle_error = angle_error / e_amp_min * (e_amp / e_amp_min); // 线性衰减到0
-    }
-    else if(e_amp < -e_amp_min)
-    {
-        angle_error /= e_amp;
-    }
-    else if (e_amp < -0.1f)
+    else if (e_amp > e_amp_low)
     {
         angle_error = angle_error / e_amp_min * (e_amp / e_amp_min);
     }
@@ -92,17 +85,19 @@ void BEMF_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
  */
 void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
 {
-    // ===== 预计算常数（可在初始化时计算一次）=====
-    float a = 1.0f - MOTOR_R * dt / MOTOR_L;  // 0.8545
-    float b = dt / MOTOR_L;                    // 0.6550
+    const float a = 1.0f - MOTOR_R * dt / MOTOR_L;
+    const float b = dt * FOC_VOLTAGE_BASE_V / (MOTOR_L * FOC_CURRENT_BASE_A);
+    const float smo_k_pu = FOC_VoltageToPu(SMO_K);
+    const float sat_boundary_pu = FOC_CurrentToPu(SAT_BOUNDARY);
+    const float e_amp_min = FOC_VoltageToPu(0.5f);
+    const float e_amp_low = FOC_VoltageToPu(0.1f);
     
     // ===== 第1步：电流误差 =====
     float err_alpha = motor->i_ab_hat.alpha - motor->i_ab.alpha;
     float err_beta  = motor->i_ab_hat.beta  - motor->i_ab.beta;
     
-    // ===== 第2步：滑模切换项（使用 SMO_K 和 SAT_BOUNDARY）=====
-    float z_alpha = SMO_K * FOC_sat(err_alpha, SAT_BOUNDARY);
-    float z_beta  = SMO_K * FOC_sat(err_beta,  SAT_BOUNDARY);
+    float z_alpha = smo_k_pu * FOC_sat(err_alpha, sat_boundary_pu);
+    float z_beta  = smo_k_pu * FOC_sat(err_beta, sat_boundary_pu);
     
     // ===== 第3步：电流观测器迭代 =====
     // Î[k+1] = a·Î[k] + b·(U[k] - Z[k])
@@ -135,12 +130,10 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
 
     float e_amp = FOC_FastNorm(motor->e_ab.alpha, motor->e_ab.beta);
     
-    // 软限幅
-    float e_amp_min = 0.5f;
     if (e_amp > e_amp_min) {
         angle_error /= e_amp;
-    } else if (e_amp > 0.1f) {
-        angle_error = angle_error / e_amp_min * (e_amp / e_amp_min); // 线性衰减到0
+    } else if (e_amp > e_amp_low) {
+        angle_error = angle_error / e_amp_min * (e_amp / e_amp_min);
     } else {
         angle_error = 0.0f;
     }

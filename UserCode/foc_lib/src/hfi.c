@@ -140,20 +140,20 @@ void HFI_Process_Current(foc_handle_t *motor, float dt)
 
     motor->hfi_iq_lpf += (motor->i_dq.q - motor->hfi_iq_lpf) * HFI_IQ_LPF_ALPHA;
     motor->hfi_iq_hf = motor->i_dq.q - motor->hfi_iq_lpf;
-    if (fabsf(motor->hfi_iq_hf) > HFI_IQ_HF_LIMIT)
+    if (fabsf(motor->hfi_iq_hf) > HFI_IQ_HF_LIMIT_PU)
     {
         HFI_Disable(motor);
         return;
     }
 
     float carrier = 0.0f;
-    if (HFI_INJECTION_VOLTAGE > 0.0f)
-        carrier = motor->hfi_v_inj / HFI_INJECTION_VOLTAGE;
+    if (HFI_INJECTION_VOLTAGE_PU > 0.0f)
+        carrier = motor->hfi_v_inj / HFI_INJECTION_VOLTAGE_PU;
 
     float demod = motor->hfi_iq_hf * carrier;
     motor->hfi_demod += (demod - motor->hfi_demod) * HFI_DEMOD_LPF_ALPHA;
     motor->hfi_error = HFI_ERROR_SIGN * motor->hfi_demod;
-    motor->hfi_valid = (fabsf(motor->hfi_iq_hf) > HFI_MIN_RESPONSE) ? 1 : motor->hfi_valid;
+    motor->hfi_valid = (fabsf(motor->hfi_iq_hf) > HFI_MIN_RESPONSE_PU) ? 1 : motor->hfi_valid;
 
     motor->hfi_pll_integral += HFI_PLL_KI * motor->hfi_error * dt;
     motor->hfi_pll_integral = HFI_Clamp(motor->hfi_pll_integral, HFI_PLL_LIMIT);
@@ -174,9 +174,9 @@ void HFI_Add_Voltage(foc_handle_t *motor, float dt)
 
     motor->hfi_phase += _2_PI * HFI_INJECTION_FREQ * dt;
     motor->hfi_phase = HFI_Wrap_Angle(motor->hfi_phase);
-    motor->hfi_v_inj = HFI_INJECTION_VOLTAGE * sinf(motor->hfi_phase) * motor->hfi_blend;
+    motor->hfi_v_inj = HFI_INJECTION_VOLTAGE_PU * sinf(motor->hfi_phase) * motor->hfi_blend;
 
     motor->u_dq.d += motor->hfi_v_inj;
-    motor->u_dq.d = HFI_Clamp(motor->u_dq.d, PI_LIMIT);
+    motor->u_dq.d = HFI_Clamp(motor->u_dq.d, FOC_VOLTAGE_LIMIT_PU);
 }
 #endif

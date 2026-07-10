@@ -206,8 +206,8 @@ void FOC_PI_Regulator(foc_pid_t *pi, float dt)
  */
 void FOC_SVPWM_Generate(foc_handle_t *motor)
 {
-    float u_alpha = motor->u_ab.alpha;
-    float u_beta = motor->u_ab.beta;
+    float u_alpha = FOC_VoltageFromPu(motor->u_ab.alpha);
+    float u_beta = FOC_VoltageFromPu(motor->u_ab.beta);
     uint16_t Ta, Tb, Tc;
     uint16_t Tx = 0.0f, Ty = 0.0f;
     uint8_t sector;

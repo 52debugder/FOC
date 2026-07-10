@@ -43,32 +43,34 @@ static float foc_wrap_delta_pm_pi(float delta)
 static foc_state_t Foc_Preprocess_CurrentSample(foc_handle_t *motor)
 {
     foc_state_t foc_state = FOC_OK;
+    float iu_a = (float)((int32_t)motor->i_adc_u - motor->i_cali_uvw.u) * CURRENT_SCALE;
+    float iw_a = (float)((int32_t)motor->i_adc_w - motor->i_cali_uvw.w) * CURRENT_SCALE;
 
-    motor->i_uvw.u = (float)((int32_t)motor->i_adc_u - motor->i_cali_uvw.u) * CURRENT_SCALE;
+    if (iu_a >= CURRENT_LIMIT)
+    {
+        iu_a = CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+    else if (iu_a <= -CURRENT_LIMIT)
+    {
+        iu_a = -CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+
+    if (iw_a >= CURRENT_LIMIT)
+    {
+        iw_a = CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+    else if (iw_a <= -CURRENT_LIMIT)
+    {
+        iw_a = -CURRENT_LIMIT;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+
+    motor->i_uvw.u = FOC_CurrentToPu(iu_a);
     motor->i_uvw.v = 0.0f;
-    motor->i_uvw.w = (float)((int32_t)motor->i_adc_w - motor->i_cali_uvw.w) * CURRENT_SCALE;
-
-    if (motor->i_uvw.u >= CURRENT_LIMIT)
-    {
-        motor->i_uvw.u = CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-    else if (motor->i_uvw.u <= -CURRENT_LIMIT)
-    {
-        motor->i_uvw.u = -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-
-    if (motor->i_uvw.w >= CURRENT_LIMIT)
-    {
-        motor->i_uvw.w = CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-    else if (motor->i_uvw.w <= -CURRENT_LIMIT)
-    {
-        motor->i_uvw.w = -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
+    motor->i_uvw.w = FOC_CurrentToPu(iw_a);
 
     return foc_state;
 }
@@ -148,16 +150,16 @@ foc_state_t Foc_ParamInit(foc_handle_t *motor, const foc_hal_t *hal_interface)
     motor->hal.init(motor->num);
     // d轴电流环参数初始化
     motor->pi_d = (foc_pid_t){
-        .kp = PI_KP_D,
-        .ki = PI_KI_D,
-        .limit = PI_LIMIT,
+        .kp = PI_KP_D_PU,
+        .ki = PI_KI_D_PU,
+        .limit = FOC_VOLTAGE_LIMIT_PU,
         .target = 0.0f};
-        
+
     // q轴电流环参数初始化
     motor->pi_q = (foc_pid_t){
-        .kp = PI_KP_Q,
-        .ki = PI_KI_Q,
-        .limit = PI_LIMIT,
+        .kp = PI_KP_Q_PU,
+        .ki = PI_KI_Q_PU,
+        .limit = FOC_VOLTAGE_LIMIT_PU,
         .target = 0.0f};
 
     // 速度PI参数初始化
@@ -397,8 +399,8 @@ foc_state_t Foc_Loop(uint8_t motor_num)
                 motor->pi_speed.integral = 0.0f; // 初始驱动力
                 motor->pi_speed.output = 6.7f;
 
-                motor->pi_q.integral = PWM_VBUS * 0.5f; // 给个初始积分，约2.4V
-                motor->pi_q.output = PWM_VBUS * 0.55f;
+                motor->pi_q.integral = FOC_VoltageToPu(PWM_VBUS * 0.5f);
+                motor->pi_q.output = FOC_VoltageToPu(PWM_VBUS * 0.55f);
 
                 if(motor->target_speed > 0)
                     motor->speed_ramp_target = FOC_AbsElecRadPerSecToMechRpm(motor->speed_observer) + 50.0f;
@@ -485,7 +487,7 @@ uint8_t Foc_Safe_Protect(float speed)
 foc_state_t Foc_Align_Loop(foc_handle_t *motor, float dt)
 {
     // 1. 定位阶段：给 D 轴施加固定电压，Q 轴为 0，强制转子对齐到 0 度
-    motor->u_dq.d = 2.0f; // 2V 左右，根据电机阻抗微调
+    motor->u_dq.d = FOC_VoltageToPu(2.0f);
     motor->u_dq.q = 0.0f;
     Foc_SetElectricalAngle(motor, 0.0f);
     motor->pi_pll.integral = 0;
@@ -572,23 +574,23 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
         vofa_cnt = 0;
 
     if (vofa_cnt >= 17000)
-        motor->pi_d.target = CURRENT_LOOP_STEP_HIGH_A;
+        motor->pi_d.target = FOC_CurrentToPu(CURRENT_LOOP_STEP_HIGH_A);
     else
-        motor->pi_d.target = CURRENT_LOOP_STEP_LOW_A;
+        motor->pi_d.target = FOC_CurrentToPu(CURRENT_LOOP_STEP_LOW_A);
     motor->pi_q.target = 0.0f;
 
-    const float current_target_limit_sq = CURRENT_TARGET_LIMIT * CURRENT_TARGET_LIMIT;
+    const float current_target_limit_sq = CURRENT_TARGET_LIMIT_PU * CURRENT_TARGET_LIMIT_PU;
     float id_target = motor->pi_d.target;
     float iq_target_limit;
 
-    if (id_target > CURRENT_TARGET_LIMIT)
-        id_target = CURRENT_TARGET_LIMIT;
-    else if (id_target < -CURRENT_TARGET_LIMIT)
-        id_target = -CURRENT_TARGET_LIMIT;
+    if (id_target > CURRENT_TARGET_LIMIT_PU)
+        id_target = CURRENT_TARGET_LIMIT_PU;
+    else if (id_target < -CURRENT_TARGET_LIMIT_PU)
+        id_target = -CURRENT_TARGET_LIMIT_PU;
 
     if (id_target == 0.0f)
     {
-        iq_target_limit = CURRENT_TARGET_LIMIT;
+        iq_target_limit = CURRENT_TARGET_LIMIT_PU;
     }
     else
     {
@@ -606,8 +608,8 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
 
     motor->pi_d.feedback = motor->i_dq.d;
     motor->pi_q.feedback = motor->i_dq.q;
-    motor->pi_d.limit = PI_LIMIT;
-    motor->pi_q.limit = PI_LIMIT;
+    motor->pi_d.limit = FOC_VOLTAGE_LIMIT_PU;
+    motor->pi_q.limit = FOC_VOLTAGE_LIMIT_PU;
 
     FOC_PI_Regulator(&motor->pi_d, dt); // pid计算
     FOC_PI_Regulator(&motor->pi_q, dt); // pid计算
@@ -620,8 +622,8 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
     Foc_RefreshTrigCache(motor);
     FOC_Park_Transform(motor);
 
-    motor->u_dq.d = 0.0f;             // 通常d轴电流设为0以获得最大转矩效率
-    motor->u_dq.q = PWM_VBUS * 0.35f; // q轴电压与期望转矩相关, 电压范围为母线电压的30%~50%
+    motor->u_dq.d = 0.0f;
+    motor->u_dq.q = FOC_VoltageToPu(PWM_VBUS * 0.35f);
 
     Foc_AdvanceOpenLoopAngle(motor, dt);
 #endif
@@ -715,7 +717,7 @@ void Foc_Update_SpeedLoop(uint8_t motor_num, float dt)
             iq_cmd = -PI_LIMIT_SPEED;
 
         motor->pi_speed.output = iq_cmd;
-        motor->pi_q.target = iq_cmd;
+        motor->pi_q.target = FOC_CurrentToPu(iq_cmd);
     }
 #endif
 }
@@ -724,7 +726,7 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
 {
     foc_state_t foc_state = FOC_OK;
 #if defined(FW_ENABLE) || defined(FOC_CLOSE_I_DEBUG_EN)
-    const float current_target_limit_sq = CURRENT_TARGET_LIMIT * CURRENT_TARGET_LIMIT;
+    const float current_target_limit_sq = CURRENT_TARGET_LIMIT_PU * CURRENT_TARGET_LIMIT_PU;
 #endif
     // pi输出限幅缓启动
     float pi_limit;
@@ -732,17 +734,19 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     float voltage_mag;
     float voltage_scale;
     
-    if(motor->close_cnt < 500)           // 缩短到500拍（0.04秒）
+    if(motor->close_cnt < 500)
     {
+        float pi_limit_v;
         motor->close_cnt++;
-        pi_limit = 3.0f + motor->close_cnt * 0.007f;  // 3V→6.5V，0.04秒到位
+        pi_limit_v = 3.0f + motor->close_cnt * 0.007f;
+        pi_limit = FOC_VoltageToPu(pi_limit_v);
     }
     else
-        pi_limit = PI_LIMIT;
+        pi_limit = FOC_VOLTAGE_LIMIT_PU;
 
     pi_limit_sq = pi_limit * pi_limit;
 
-    // 电流前处理：减零偏、转安培、限幅
+    // 电流前处理：减零偏、按A做保护判断，再写入p.u.
     foc_state = Foc_Preprocess_CurrentSample(motor);
 
     // Clark变换，
@@ -812,27 +816,25 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     vofa_cnt++;
     if(vofa_cnt >= 17000 && vofa_cnt < 34000)
     {
-        motor->pi_q.target = CURRENT_LOOP_STEP_HIGH_A; // 速度环输出→iq目标
-        // motor->pi_q.target = 0.2f; // 速度环输出→iq目标
+        motor->pi_q.target = FOC_CurrentToPu(CURRENT_LOOP_STEP_HIGH_A);
     }
     else if(vofa_cnt > 0 && vofa_cnt < 17000)
-        motor->pi_q.target = CURRENT_LOOP_STEP_LOW_A; // 速度环输出→iq目标
-        // motor->pi_q.target = 0.2f; // 速度环输出→iq目标
+        motor->pi_q.target = FOC_CurrentToPu(CURRENT_LOOP_STEP_LOW_A);
     else
         vofa_cnt = 0;
-    motor->pi_d.target = 0.0f;                   // id始终为0
+    motor->pi_d.target = 0.0f;
 #elif defined(FW_ENABLE)
     float id_target = motor->pi_d.target;
     float iq_target_limit;
 
-    if (id_target > CURRENT_TARGET_LIMIT)
-        id_target = CURRENT_TARGET_LIMIT;
-    else if (id_target < -CURRENT_TARGET_LIMIT)
-        id_target = -CURRENT_TARGET_LIMIT;
+    if (id_target > CURRENT_TARGET_LIMIT_PU)
+        id_target = CURRENT_TARGET_LIMIT_PU;
+    else if (id_target < -CURRENT_TARGET_LIMIT_PU)
+        id_target = -CURRENT_TARGET_LIMIT_PU;
 
     if (id_target == 0.0f)
     {
-        iq_target_limit = CURRENT_TARGET_LIMIT;
+        iq_target_limit = CURRENT_TARGET_LIMIT_PU;
     }
     else
     {

@@ -26,8 +26,39 @@ extern "C" {
 #define CURRENT_SCALE       (PWM_SCALE / (INA240_GAIN * SAMPLE_RESISTOR * ADC_RESOLUTION))  // 从ad数值转换到实际电流值的转换系数
 #define TS_MOTORL           (TS/MOTOR_L)
 #define DEAD_COMP_V         (PWM_VBUS * BTN7960_DEAD_TIME_S / TS)
-#define PI_LIMIT            (PWM_VBUS * 0.95f / SQRT_3)                                     // 最大不失真电压
+#define PI_LIMIT            (PWM_VBUS * 0.95f / SQRT_3)                                     // 最大不失真电压 
 #define SVPWM_K             (SQRT_3 * PWM_ARR / PWM_VBUS)
+#define FOC_CURRENT_LIMIT_PU 1.0f
+#define FOC_VOLTAGE_LIMIT_PU 1.0f
+#define CURRENT_TARGET_LIMIT_PU (CURRENT_TARGET_LIMIT / FOC_CURRENT_BASE_A)
+#define FW_ID_MAX_PU        (FW_ID_MAX / FOC_CURRENT_BASE_A)
+#define HFI_INJECTION_VOLTAGE_PU (HFI_INJECTION_VOLTAGE / FOC_VOLTAGE_BASE_V)
+#define HFI_IQ_HF_LIMIT_PU  (HFI_IQ_HF_LIMIT / FOC_CURRENT_BASE_A)
+#define HFI_MIN_RESPONSE_PU (HFI_MIN_RESPONSE / FOC_CURRENT_BASE_A)
+#define PI_KP_D_PU          (PI_KP_D * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
+#define PI_KI_D_PU          (PI_KI_D * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
+#define PI_KP_Q_PU          (PI_KP_Q * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
+#define PI_KI_Q_PU          (PI_KI_Q * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
+
+static inline float FOC_CurrentToPu(float current_a)
+{
+    return current_a / FOC_CURRENT_BASE_A;
+}
+
+static inline float FOC_CurrentFromPu(float current_pu)
+{
+    return current_pu * FOC_CURRENT_BASE_A;
+}
+
+static inline float FOC_VoltageToPu(float voltage_v)
+{
+    return voltage_v / FOC_VOLTAGE_BASE_V;
+}
+
+static inline float FOC_VoltageFromPu(float voltage_pu)
+{
+    return voltage_pu * FOC_VOLTAGE_BASE_V;
+}
 
 /**
  * @brief 机械速度（rpm）转电角速度（rad/s）

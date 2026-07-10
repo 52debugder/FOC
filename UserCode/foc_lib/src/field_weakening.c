@@ -24,7 +24,7 @@ void FOC_FieldWeakening(foc_handle_t *motor, float dt)
     vs = sqrtf(vd * vd + vq * vq);
     motor->fw_voltage = vs;
 
-    voltage_limit = CURRENT_PI_LIMIT;
+    voltage_limit = FOC_VOLTAGE_LIMIT_PU;
     voltage_enter = voltage_limit * FW_VOLTAGE_THRESHOLD;
     voltage_exit = voltage_limit * FW_VOLTAGE_EXIT_THRESHOLD;
 
@@ -59,7 +59,7 @@ void FOC_FieldWeakening(foc_handle_t *motor, float dt)
         }
     }
 
-    id_limit = fminf(FW_ID_MAX, CURRENT_TARGET_LIMIT);
+    id_limit = fminf(FW_ID_MAX_PU, CURRENT_TARGET_LIMIT_PU);
     if (motor->id_fw < -id_limit)
         motor->id_fw = -id_limit;
     if (motor->id_fw > 0.0f)

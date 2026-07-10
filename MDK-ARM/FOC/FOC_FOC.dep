@@ -43,13 +43,13 @@ I (../Core/Inc/usart.h)(0x6A2CAA4D)
 I (../Core/Inc/gpio.h)(0x6A251BF9)
 I (../UserCode/APP/app_comm.h)(0x6A2CA2E6)
 I (../UserCode/foc_lib/inc/foc.h)(0x6A4D114D)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
 I (../UserCode/foc_lib/inc/smo.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/foc_math.h)(0x6A5051FC)
-I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A50541E)
+I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A505D42)
 I (../UserCode/foc_lib/inc/field_weakening.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/hfi.h)(0x6A2524D2)
 I (../UserCode/APP/app_motor.h)(0x6A4D0F0C)
@@ -1001,13 +1001,13 @@ I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h)(0x69DD8956)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h)(0x69DD8956)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h)(0x69DD8956)
 I (../UserCode/foc_lib/inc/foc.h)(0x6A4D114D)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
 I (../UserCode/foc_lib/inc/smo.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/foc_math.h)(0x6A5051FC)
-I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A50541E)
+I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A505D42)
 I (../UserCode/foc_lib/inc/field_weakening.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/hfi.h)(0x6A2524D2)
 I (../UserCode/APP/app_motor.h)(0x6A4D0F0C)
@@ -1049,13 +1049,13 @@ I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h)(0x69DD8956)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h)(0x69DD8956)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h)(0x69DD8956)
 I (../UserCode/foc_lib/inc/foc.h)(0x6A4D114D)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
 I (../UserCode/foc_lib/inc/smo.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/foc_math.h)(0x6A5051FC)
-I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A50541E)
+I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A505D42)
 I (../UserCode/foc_lib/inc/field_weakening.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/hfi.h)(0x6A2524D2)
 I (../UserCode/Device/as5600.h)(0x6A3967C7)
@@ -1240,35 +1240,35 @@ I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h)(0x69DD8956)
 I (../UserCode/BSP/bsp_iic.h)(0x6A2623EA)
 I (../Core/Inc/i2c.h)(0x6A255F4B)
 I (../Core/Inc/main.h)(0x6A2524D2)
-F (..\UserCode\foc_lib\src\field_weakening.c)(0x6A2524D2)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\field_weakening.o --omf_browse foc\field_weakening.crf --depend foc\field_weakening.d)
+F (..\UserCode\foc_lib\src\field_weakening.c)(0x6A5068F6)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\field_weakening.o --omf_browse foc\field_weakening.crf --depend foc\field_weakening.d)
 I (../UserCode/foc_lib/inc/field_weakening.h)(0x6A2524D2)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
 I (D:\keil5\ARM\ARMCC\include\stdint.h)(0x588B8344)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
 I (../UserCode/foc_lib/inc/foc_math.h)(0x6A5051FC)
-I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A50541E)
-F (..\UserCode\foc_lib\src\foc.c)(0x6A50524E)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\foc.o --omf_browse foc\foc.crf --depend foc\foc.d)
+I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A505D42)
+F (..\UserCode\foc_lib\src\foc.c)(0x6A5063C6)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\foc.o --omf_browse foc\foc.crf --depend foc\foc.d)
 I (../UserCode/foc_lib/inc/foc.h)(0x6A4D114D)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
 I (D:\keil5\ARM\ARMCC\include\stdint.h)(0x588B8344)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
 I (../UserCode/foc_lib/inc/smo.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/foc_math.h)(0x6A5051FC)
-I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A50541E)
+I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A505D42)
 I (../UserCode/foc_lib/inc/field_weakening.h)(0x6A2524D2)
 I (../UserCode/foc_lib/inc/hfi.h)(0x6A2524D2)
-F (..\UserCode\foc_lib\src\foc_math.c)(0x6A505464)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\foc_math.o --omf_browse foc\foc_math.crf --depend foc\foc_math.d)
+F (..\UserCode\foc_lib\src\foc_math.c)(0x6A50689D)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\foc_math.o --omf_browse foc\foc_math.crf --depend foc\foc_math.d)
 I (../UserCode/foc_lib/inc/foc_math.h)(0x6A5051FC)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
 I (D:\keil5\ARM\ARMCC\include\stdint.h)(0x588B8344)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
-I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A50541E)
+I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A505D42)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h)(0x69DD8956)
 I (../Core/Inc/stm32f1xx_hal_conf.h)(0x6A2CAA4D)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc.h)(0x69DD8956)
@@ -1299,22 +1299,22 @@ I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h)(0x69DD8956)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h)(0x69DD8956)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h)(0x69DD8956)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h)(0x69DD8956)
-F (..\UserCode\foc_lib\src\hfi.c)(0x6A504DFC)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\hfi.o --omf_browse foc\hfi.crf --depend foc\hfi.d)
+F (..\UserCode\foc_lib\src\hfi.c)(0x6A506915)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\hfi.o --omf_browse foc\hfi.crf --depend foc\hfi.d)
 I (../UserCode/foc_lib/inc/hfi.h)(0x6A2524D2)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
 I (D:\keil5\ARM\ARMCC\include\stdint.h)(0x588B8344)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
-F (..\UserCode\foc_lib\src\smo.c)(0x6A504F53)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\smo.o --omf_browse foc\smo.crf --depend foc\smo.d)
+F (..\UserCode\foc_lib\src\smo.c)(0x6A506A17)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\smo.o --omf_browse foc\smo.crf --depend foc\smo.d)
 I (../UserCode/foc_lib/inc/smo.h)(0x6A2524D2)
-I (../UserCode/foc_lib/inc/foc_types.h)(0x6A4D11C2)
+I (../UserCode/foc_lib/inc/foc_types.h)(0x6A505D9D)
 I (D:\keil5\ARM\ARMCC\include\stdint.h)(0x588B8344)
-I (../UserCode/foc_lib/inc/foc_config.h)(0x6A49D25C)
+I (../UserCode/foc_lib/inc/foc_config.h)(0x6A505CBE)
 I (D:\keil5\ARM\ARMCC\include\math.h)(0x588B8344)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
 I (../UserCode/foc_lib/inc/foc_math.h)(0x6A5051FC)
-I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A50541E)
+I (../UserCode/foc_lib/inc/foc_utils.h)(0x6A505D42)
 F (..\UserCode\foc_lib\src\user_foc_hal.c)(0x6A4D1284)(--c99 -c --cpu Cortex-M3 -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../UserCode/APP -I ../UserCode/Communication -I ../UserCode/BSP -I ../UserCode/Device -I ../UserCode/foc_lib/inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../UserCode/foc_lib/src-I.\RTE\_FOC-ID:\keil5\ARM\PACK\ARM\CMSIS\6.2.0\CMSIS\Core\Include-ID:\keil5\ARM\PACK\Keil\STM32F1xx_DFP\2.4.0\Device\Include-D__UVISION_VERSION="543" -DSTM32F10X_MD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xB-o foc\user_foc_hal.o --omf_browse foc\user_foc_hal.crf --depend foc\user_foc_hal.d)
 I (../UserCode/foc_lib/inc/foc_hal.h)(0x6A2EAE30)
 I (D:\keil5\ARM\ARMCC\include\stdint.h)(0x588B8344)
@@ -1353,10 +1353,10 @@ I (../Core/Inc/tim.h)(0x6A486996)
 I (../Core/Inc/adc.h)(0x6A26D2ED)
 F (..\UserCode\foc_lib\inc\field_weakening.h)(0x6A2524D2)()
 F (..\UserCode\foc_lib\inc\foc.h)(0x6A4D114D)()
-F (..\UserCode\foc_lib\inc\foc_config.h)(0x6A49D25C)()
+F (..\UserCode\foc_lib\inc\foc_config.h)(0x6A505CBE)()
 F (..\UserCode\foc_lib\inc\foc_hal.h)(0x6A2EAE30)()
 F (..\UserCode\foc_lib\inc\foc_math.h)(0x6A5051FC)()
-F (..\UserCode\foc_lib\inc\foc_types.h)(0x6A4D11C2)()
-F (..\UserCode\foc_lib\inc\foc_utils.h)(0x6A50541E)()
+F (..\UserCode\foc_lib\inc\foc_types.h)(0x6A505D9D)()
+F (..\UserCode\foc_lib\inc\foc_utils.h)(0x6A505D42)()
 F (..\UserCode\foc_lib\inc\hfi.h)(0x6A2524D2)()
 F (..\UserCode\foc_lib\inc\smo.h)(0x6A2524D2)()

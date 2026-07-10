@@ -48,6 +48,8 @@ extern "C" {
 #define CURRENT_REF_LIMIT       (CURRENT_PI_LIMIT * 0.85f / MOTOR_R) // 当前母线电压和相电阻下建议的电流指令上限(A)
 #define CURRENT_DEBUG_LIMIT     2.5f
 #define CURRENT_TARGET_LIMIT    ((CURRENT_REF_LIMIT < CURRENT_DEBUG_LIMIT) ? CURRENT_REF_LIMIT : CURRENT_DEBUG_LIMIT)
+#define FOC_CURRENT_BASE_A      CURRENT_LIMIT
+#define FOC_VOLTAGE_BASE_V      CURRENT_PI_LIMIT
 #define FW_VOLTAGE_THRESHOLD    0.96f       // 触发弱磁的电压利用率（建议0.93~0.97）
 #define FW_VOLTAGE_EXIT_THRESHOLD 0.88f     // 退出弱磁的电压利用率，低于进入阈值形成滞回
 #define FW_KI                   1.0f       // 弱磁积分增益（越大响应越快，但可能振荡）

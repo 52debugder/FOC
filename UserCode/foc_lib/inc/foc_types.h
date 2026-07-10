@@ -133,22 +133,22 @@ typedef struct
     foc_pwm_t               pwm;                // PWM输出
     foc_sensor_mech_t       sensor_mech;        // 编码器测出的数据
 
-    foc_uvw_t               i_uvw;              // 三相电流
-    foc_uvw_t               i_cali_uvw;         // 零偏电流
-    foc_ab_t                i_ab;               // clack变换的结果
+    foc_uvw_t               i_uvw;              // 三相电流(p.u.)
+    foc_uvw_t               i_cali_uvw;         // 相电流零偏原始计数
+    foc_ab_t                i_ab;               // clarke变换后的电流(p.u.)
     foc_ab_t                i_ab_pre;           // 上一拍电流
-    foc_dq_t                i_dq;               // park变换的结果
-    foc_ab_t                u_ab;               // park逆变换的结果
-    foc_ab_t                e_ab;               // 在观测器中滤波之后的反电动势
-    foc_ab_t                i_ab_hat;           // 估计的电流
-    foc_dq_t                u_dq;               // q轴和d轴电压
+    foc_dq_t                i_dq;               // park变换后的电流(p.u.)
+    foc_ab_t                u_ab;               // 反park后的电压(p.u.)
+    foc_ab_t                e_ab;               // 观测器中的反电动势/切换项(p.u.)
+    foc_ab_t                i_ab_hat;           // 观测器估计电流(p.u.)
+    foc_dq_t                u_dq;               // dq轴电压(p.u.)
 
     /*pid参数*/     
-    foc_pid_t               pi_d;               // d轴电流PI
-    foc_pid_t               pi_q;               // q轴电流PI
-    foc_pid_t               pi_speed;           // 速度PI
-    foc_pid_t               pi_position;        // 位置PI
-    foc_pid_t               pi_pll;             // 锁相环PI
+    foc_pid_t               pi_d;               // d轴电流PI（输入/输出均为p.u.）
+    foc_pid_t               pi_q;               // q轴电流PI（输入/输出均为p.u.）
+    foc_pid_t               pi_speed;           // 速度PI（rpm -> A）
+    foc_pid_t               pi_position;        // 位置PI（rad -> rpm）
+    foc_pid_t               pi_pll;             // 锁相环PI（电角rad/s）
 
     uint16_t                i_adc_u;            // ADC锁存后的相电流采样原始计数
     uint16_t                i_adc_v;            // ADC锁存后的相电流采样原始计数
@@ -160,15 +160,15 @@ typedef struct
     float                   speed_observer;     // 观测器得到的电角速度(rad/s)
     float                   speed_sign;         // 电机转子正转还是反转
 
-    float                   id_fw;              // 弱磁注入的负 id（弱磁控制器输出，≤0）
+    float                   id_fw;              // 弱磁注入的负id(p.u.)
     float                   fw_active;          // 弱磁激活标志（调试用）
-    float                   fw_voltage;         // 弱磁电压矢量幅值（调试用）
+    float                   fw_voltage;         // 弱磁电压矢量幅值(p.u.)
 
     /*目标值*/      
-    float                   target_iq;          // q轴电流目标值
-    float                   target_id;          // d轴电流目标值
-    float                   target_speed;       // 电机目标速度
-    float                   speed_ramp_target;  // 电机爬坡目标速度
+    float                   target_iq;          // q轴电流目标值(p.u.)
+    float                   target_id;          // d轴电流目标值(p.u.)
+    float                   target_speed;       // 电机目标速度(rpm)
+    float                   speed_ramp_target;  // 电机爬坡目标速度(rpm)
     float                   target_position;    // 电机目标机械位置(rad)
     float                   position_raw;       // 未扣零点的累计机械位置(rad)
     float                   position;           // 扣零后的累计机械位置(rad)
@@ -190,9 +190,9 @@ typedef struct
     float                   speed_hfi_observer; // HFI估计电角速度(rad/s)
     float                   hfi_pll_integral;   // HFI PLL积分项
     float                   hfi_phase;          // 注入信号相位(rad)
-    float                   hfi_v_inj;          // 当前注入电压(V)
-    float                   hfi_iq_lpf;         // q轴低频电流估计
-    float                   hfi_iq_hf;          // q轴高频电流分量
+    float                   hfi_v_inj;          // 当前注入电压(p.u.)
+    float                   hfi_iq_lpf;         // q轴低频电流估计(p.u.)
+    float                   hfi_iq_hf;          // q轴高频电流分量(p.u.)
     float                   hfi_demod;          // 同步解调低通结果
     float                   hfi_error;          // HFI角度误差
     float                   hfi_blend;          // HFI角度权重
