@@ -27,6 +27,23 @@ extern "C" {
 // #define TS                      0.0001176f     // 采样时间间隔
 #define TS                      0.00005f        // 采样时间间隔 (20kHz ISR)
 
+#define FOC_CURRENT_BASE_A      CURRENT_LIMIT       // 电流基值
+#define FOC_VOLTAGE_BASE_V      CURRENT_PI_LIMIT    // 电压基值
+
+// 电机通用参数（根据电机修改）
+// #define POLE_PAIRS              7.0f            // 电机极对数（示例：7对极）
+// #define CURRENT_LIMIT           20.0f           // 最大相电流(A)
+// #define MOTOR_R                 0.095f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
+// #define MOTOR_L_Q               0.000361353f   // Q轴电感
+// #define MOTOR_L_D               0.000335029f   // D轴电感
+// #define MOTOR_L                 0.000348191f    // 相电感 (Henry)
+// #define MAX_MOTOR_NUM           2               // 最大电机数量
+#define POLE_PAIRS              7               // 电机极对数（示例：7对极）
+#define CURRENT_LIMIT           20.0f           // 最大相电流(A)
+#define MOTOR_R                 2.55f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
+#define MOTOR_L                 0.00086f    // 相电感 (Henry)
+#define MAX_MOTOR_NUM           2               // 最大电机数量
+
 // INA240参数   
 #define INA240_GAIN             50             // INA240A2增益50V/V
 #define SAMPLE_RESISTOR         0.01f         // 采样电阻10mΩ
@@ -48,8 +65,6 @@ extern "C" {
 #define CURRENT_REF_LIMIT       (CURRENT_PI_LIMIT * 0.85f / MOTOR_R) // 当前母线电压和相电阻下建议的电流指令上限(A)
 #define CURRENT_DEBUG_LIMIT     2.5f
 #define CURRENT_TARGET_LIMIT    ((CURRENT_REF_LIMIT < CURRENT_DEBUG_LIMIT) ? CURRENT_REF_LIMIT : CURRENT_DEBUG_LIMIT)
-#define FOC_CURRENT_BASE_A      CURRENT_LIMIT
-#define FOC_VOLTAGE_BASE_V      CURRENT_PI_LIMIT
 #define FW_VOLTAGE_THRESHOLD    0.96f       // 触发弱磁的电压利用率（建议0.93~0.97）
 #define FW_VOLTAGE_EXIT_THRESHOLD 0.88f     // 退出弱磁的电压利用率，低于进入阈值形成滞回
 #define FW_KI                   1.0f       // 弱磁积分增益（越大响应越快，但可能振荡）
@@ -58,20 +73,6 @@ extern "C" {
 #define FW_ID_MAX               (CURRENT_TARGET_LIMIT * 0.47f)        // 最大弱磁电流限幅（A）
 #define FW_TARGET_HOLD_MARGIN_RPM 50.0f
 #define FW_HOLD_KI_SCALE        0.10f
-
-// 电机通用参数（根据电机修改）
-// #define POLE_PAIRS              7.0f            // 电机极对数（示例：7对极）
-// #define CURRENT_LIMIT           20.0f           // 最大相电流(A)
-// #define MOTOR_R                 0.095f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
-// #define MOTOR_L_Q               0.000361353f   // Q轴电感
-// #define MOTOR_L_D               0.000335029f   // D轴电感
-// #define MOTOR_L                 0.000348191f    // 相电感 (Henry)
-// #define MAX_MOTOR_NUM           2               // 最大电机数量
-#define POLE_PAIRS              7               // 电机极对数（示例：7对极）
-#define CURRENT_LIMIT           20.0f           // 最大相电流(A)
-#define MOTOR_R                 2.55f           // 相电阻含系统阻抗 (Ohm，电机0.095+PCB+FET)
-#define MOTOR_L                 0.00086f    // 相电感 (Henry)
-#define MAX_MOTOR_NUM           2               // 最大电机数量
 
 // PLL参数
 #define PLL_KP                  170.0f      

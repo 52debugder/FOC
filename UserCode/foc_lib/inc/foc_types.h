@@ -53,12 +53,45 @@ typedef struct
   int16_t hSin;
 }foc_Trig_Components;
 
+typedef int16_t foc_q15_t;
+typedef int32_t foc_accum_t;
+typedef int16_t foc_angle16_t;
+
+typedef struct
+{
+    foc_q15_t u;
+    foc_q15_t v;
+    foc_q15_t w;
+}foc_uvw_fx_t;
+
+typedef struct
+{
+    foc_q15_t alpha;
+    foc_q15_t beta;
+}foc_ab_fx_t;
+
+typedef struct
+{
+    foc_q15_t d;
+    foc_q15_t q;
+}foc_dq_fx_t;
+
+typedef struct {
+    foc_accum_t kp;
+    foc_accum_t ki_dt;
+    foc_q15_t target;
+    foc_q15_t feedback;
+    foc_q15_t output;
+    foc_q15_t limit;
+    foc_accum_t integral;
+} foc_pid_fx_t;
+
 typedef struct
 {
     float u;
     float v;
     float w;
-}foc_uvw_t; 
+}foc_uvw_t;
 
 typedef struct
 {
@@ -142,10 +175,17 @@ typedef struct
     foc_ab_t                e_ab;               // 观测器中的反电动势/切换项(p.u.)
     foc_ab_t                i_ab_hat;           // 观测器估计电流(p.u.)
     foc_dq_t                u_dq;               // dq轴电压(p.u.)
+    foc_uvw_fx_t            i_uvw_fx;           // 三相电流(Q15)
+    foc_ab_fx_t             i_ab_fx;            // clarke变换后的电流(Q15)
+    foc_dq_fx_t             i_dq_fx;            // park变换后的电流(Q15)
+    foc_ab_fx_t             u_ab_fx;            // 反park后的电压(Q15)
+    foc_dq_fx_t             u_dq_fx;            // dq轴电压(Q15)
 
-    /*pid参数*/     
+    /*pid参数*/
     foc_pid_t               pi_d;               // d轴电流PI（输入/输出均为p.u.）
     foc_pid_t               pi_q;               // q轴电流PI（输入/输出均为p.u.）
+    foc_pid_fx_t            pi_d_fx;            // d轴电流PI（Q15）
+    foc_pid_fx_t            pi_q_fx;            // q轴电流PI（Q15）
     foc_pid_t               pi_speed;           // 速度PI（rpm -> A）
     foc_pid_t               pi_position;        // 位置PI（rad -> rpm）
     foc_pid_t               pi_pll;             // 锁相环PI（电角rad/s）
@@ -154,6 +194,7 @@ typedef struct
     uint16_t                i_adc_v;            // ADC锁存后的相电流采样原始计数
     uint16_t                i_adc_w;            // ADC锁存后的相电流采样原始计数
     float                   theta;              // 转子电角度(rad)
+    foc_angle16_t           theta_fx;           // 转子电角度(Q15 turn-domain)
     float                   speed;              // 电机机械转速(rpm)
     float                   theta_Observer;     // 观测器得到的转子电角度(rad)
     float                   theta_obs_prev;     // 上一拍观测角度，用于微分估速
@@ -176,6 +217,8 @@ typedef struct
     float                   position_dir;       // 本次位置运动方向
 
     foc_Trig_Components     trig;              // 三角函数
+    foc_q15_t               sin_theta_fx;      // Q15 sin缓存
+    foc_q15_t               cos_theta_fx;      // Q15 cos缓存
     float                   sin_theta;         // 浮点sin缓存
     float                   cos_theta;         // 浮点cos缓存
     uint32_t                trig_sample_seq;   // trig缓存对应的传感器采样序号

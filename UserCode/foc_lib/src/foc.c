@@ -40,37 +40,65 @@ static float foc_wrap_delta_pm_pi(float delta)
     return delta;
 }
 
+static void foc_sync_pi_shadow_from_fx(foc_pid_t *pi_float, foc_pid_fx_t *pi_fx)
+{
+    pi_float->target = FOC_Q15ToFloat(pi_fx->target);
+    pi_float->feedback = FOC_Q15ToFloat(pi_fx->feedback);
+    pi_float->output = FOC_Q15ToFloat(pi_fx->output);
+    pi_float->integral = FOC_Q15ToFloat(FOC_Q15Clamp(pi_fx->integral));
+    pi_float->limit = FOC_Q15ToFloat(pi_fx->limit);
+}
+
+static void foc_sync_current_targets_to_fx(foc_handle_t *motor)
+{
+    motor->pi_d_fx.target = FOC_Q15FromCurrentPu(motor->pi_d.target);
+    motor->pi_q_fx.target = FOC_Q15FromCurrentPu(motor->pi_q.target);
+}
+
+static void foc_set_udq_fx(foc_handle_t *motor, foc_q15_t d, foc_q15_t q)
+{
+    motor->u_dq_fx.d = d;
+    motor->u_dq_fx.q = q;
+    motor->u_dq.d = FOC_Q15ToFloat(d);
+    motor->u_dq.q = FOC_Q15ToFloat(q);
+}
+
 static foc_state_t Foc_Preprocess_CurrentSample(foc_handle_t *motor)
 {
     foc_state_t foc_state = FOC_OK;
-    float iu_a = (float)((int32_t)motor->i_adc_u - motor->i_cali_uvw.u) * CURRENT_SCALE;
-    float iw_a = (float)((int32_t)motor->i_adc_w - motor->i_cali_uvw.w) * CURRENT_SCALE;
+    int32_t raw_u = (int32_t)motor->i_adc_u - (int32_t)motor->i_cali_uvw.u;
+    int32_t raw_w = (int32_t)motor->i_adc_w - (int32_t)motor->i_cali_uvw.w;
+    int32_t iu_q15 = (raw_u * FOC_ADC_TO_CURRENT_PU_Q20 + (1 << 4)) >> 5;
+    int32_t iw_q15 = (raw_w * FOC_ADC_TO_CURRENT_PU_Q20 + (1 << 4)) >> 5;
 
-    if (iu_a >= CURRENT_LIMIT)
+    if (iu_q15 >= FOC_Q15_MAX)
     {
-        iu_a = CURRENT_LIMIT;
+        iu_q15 = FOC_Q15_MAX;
         foc_state = FOC_ERR_OVERCURRENT;
     }
-    else if (iu_a <= -CURRENT_LIMIT)
+    else if (iu_q15 <= FOC_Q15_MIN)
     {
-        iu_a = -CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-
-    if (iw_a >= CURRENT_LIMIT)
-    {
-        iw_a = CURRENT_LIMIT;
-        foc_state = FOC_ERR_OVERCURRENT;
-    }
-    else if (iw_a <= -CURRENT_LIMIT)
-    {
-        iw_a = -CURRENT_LIMIT;
+        iu_q15 = FOC_Q15_MIN;
         foc_state = FOC_ERR_OVERCURRENT;
     }
 
-    motor->i_uvw.u = FOC_CurrentToPu(iu_a);
+    if (iw_q15 >= FOC_Q15_MAX)
+    {
+        iw_q15 = FOC_Q15_MAX;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+    else if (iw_q15 <= FOC_Q15_MIN)
+    {
+        iw_q15 = FOC_Q15_MIN;
+        foc_state = FOC_ERR_OVERCURRENT;
+    }
+
+    motor->i_uvw_fx.u = (foc_q15_t)iu_q15;
+    motor->i_uvw_fx.v = 0;
+    motor->i_uvw_fx.w = (foc_q15_t)iw_q15;
+    motor->i_uvw.u = FOC_Q15ToFloat(motor->i_uvw_fx.u);
     motor->i_uvw.v = 0.0f;
-    motor->i_uvw.w = FOC_CurrentToPu(iw_a);
+    motor->i_uvw.w = FOC_Q15ToFloat(motor->i_uvw_fx.w);
 
     return foc_state;
 }
@@ -78,6 +106,7 @@ static foc_state_t Foc_Preprocess_CurrentSample(foc_handle_t *motor)
 static void Foc_SetElectricalAngle(foc_handle_t *motor, float theta)
 {
     motor->theta = foc_wrap_angle_0_2pi(theta);
+    motor->theta_fx = FOC_RadToQ15Angle(motor->theta);
 }
 
 static void Foc_RefreshTrigCache(foc_handle_t *motor)
@@ -154,6 +183,15 @@ foc_state_t Foc_ParamInit(foc_handle_t *motor, const foc_hal_t *hal_interface)
         .ki = PI_KI_D_PU,
         .limit = FOC_VOLTAGE_LIMIT_PU,
         .target = 0.0f};
+    motor->pi_d_fx = (foc_pid_fx_t){
+        .kp = FOC_FloatToQ16_16(PI_KP_D_PU),
+        .ki_dt = FOC_FloatToQ16_16(PI_KI_D_DT_PU),
+        .limit = FOC_Q15FromVoltagePu(FOC_VOLTAGE_LIMIT_PU),
+        .target = 0,
+        .feedback = 0,
+        .output = 0,
+        .integral = 0,
+    };
 
     // q轴电流环参数初始化
     motor->pi_q = (foc_pid_t){
@@ -161,6 +199,15 @@ foc_state_t Foc_ParamInit(foc_handle_t *motor, const foc_hal_t *hal_interface)
         .ki = PI_KI_Q_PU,
         .limit = FOC_VOLTAGE_LIMIT_PU,
         .target = 0.0f};
+    motor->pi_q_fx = (foc_pid_fx_t){
+        .kp = FOC_FloatToQ16_16(PI_KP_Q_PU),
+        .ki_dt = FOC_FloatToQ16_16(PI_KI_Q_DT_PU),
+        .limit = FOC_Q15FromVoltagePu(FOC_VOLTAGE_LIMIT_PU),
+        .target = 0,
+        .feedback = 0,
+        .output = 0,
+        .integral = 0,
+    };
 
     // 速度PI参数初始化
     motor->pi_speed = (foc_pid_t){
@@ -219,6 +266,9 @@ foc_state_t Foc_ParamInit(foc_handle_t *motor, const foc_hal_t *hal_interface)
     motor->theta_obs_prev = 0.0f;
 
     motor->theta = 0.0f;
+    motor->theta_fx = 0;
+    motor->sin_theta_fx = 0;
+    motor->cos_theta_fx = FOC_Q15_MAX;
     motor->sin_theta = 0.0f;
     motor->cos_theta = 1.0f;
     motor->trig_sample_seq = 0U;
@@ -284,6 +334,8 @@ foc_state_t Foc_Loop(uint8_t motor_num)
             motor->pi_pll.integral   = 0.0f;
             motor->pi_d.integral        = 0.0f;
             motor->pi_q.integral        = 0.0f;
+            motor->pi_d_fx.integral     = 0;
+            motor->pi_q_fx.integral     = 0;
             motor->pi_speed.integral    = 0.0f;
             motor->pi_position.integral = 0.0f;
             motor->theta_obs_prev       = 0.0f;
@@ -395,12 +447,16 @@ foc_state_t Foc_Loop(uint8_t motor_num)
                 motor->pi_pll.integral = motor->target_speed > 0 ? fabsf(motor->speed_observer) : -fabsf(motor->speed_observer);
                 motor->pi_d.integral = 0.0f;
                 motor->pi_d.output = 0.0f;
+                motor->pi_d_fx.integral = 0;
+                motor->pi_d_fx.output = 0;
 
                 motor->pi_speed.integral = 0.0f; // 初始驱动力
                 motor->pi_speed.output = 6.7f;
 
                 motor->pi_q.integral = FOC_VoltageToPu(PWM_VBUS * 0.5f);
                 motor->pi_q.output = FOC_VoltageToPu(PWM_VBUS * 0.55f);
+                motor->pi_q_fx.integral = FOC_Q15FromVoltagePu(motor->pi_q.integral);
+                motor->pi_q_fx.output = FOC_Q15FromVoltagePu(motor->pi_q.output);
 
                 if(motor->target_speed > 0)
                     motor->speed_ramp_target = FOC_AbsElecRadPerSecToMechRpm(motor->speed_observer) + 50.0f;
@@ -487,8 +543,7 @@ uint8_t Foc_Safe_Protect(float speed)
 foc_state_t Foc_Align_Loop(foc_handle_t *motor, float dt)
 {
     // 1. 定位阶段：给 D 轴施加固定电压，Q 轴为 0，强制转子对齐到 0 度
-    motor->u_dq.d = FOC_VoltageToPu(2.0f);
-    motor->u_dq.q = 0.0f;
+    foc_set_udq_fx(motor, FOC_Q15FromVoltagePu(FOC_VoltageToPu(2.0f)), 0);
     Foc_SetElectricalAngle(motor, 0.0f);
     motor->pi_pll.integral = 0;
     motor->theta_Observer = 0.0f;
@@ -538,8 +593,8 @@ foc_state_t Foc_Align_Loop(foc_handle_t *motor, float dt)
     }
     
     Foc_RefreshTrigCache(motor);
-    FOC_InvPark_Transform(motor);
-    FOC_SVPWM_Generate(motor);
+    FOC_InvPark_Transform_Fx(motor);
+    FOC_SVPWM_Generate_Fx(motor);
     return FOC_OK;
 }
 
@@ -555,7 +610,7 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
     foc_state_t foc_state = Foc_Preprocess_CurrentSample(motor);
 
     // 3. Clark变换，
-    FOC_Clark_Transform(motor);
+    FOC_Clark_Transform_Fx(motor);
 
 #ifdef FOC_SMO_EN // 观测器使能
     // 4. smo观测器推算转子位置，得到电角度和转速
@@ -606,32 +661,30 @@ foc_state_t Foc_Open_Loop(foc_handle_t *motor, float dt)
     else if (motor->pi_q.target < -iq_target_limit)
         motor->pi_q.target = -iq_target_limit;
 
-    motor->pi_d.feedback = motor->i_dq.d;
-    motor->pi_q.feedback = motor->i_dq.q;
     motor->pi_d.limit = FOC_VOLTAGE_LIMIT_PU;
     motor->pi_q.limit = FOC_VOLTAGE_LIMIT_PU;
 
     FOC_PI_Regulator(&motor->pi_d, dt); // pid计算
     FOC_PI_Regulator(&motor->pi_q, dt); // pid计算
-    motor->u_dq.d = motor->pi_d.output;
-    motor->u_dq.q = motor->pi_q.output;
+    foc_set_udq_fx(motor,
+        FOC_Q15FromVoltagePu(motor->pi_d.output),
+        FOC_Q15FromVoltagePu(motor->pi_q.output));
 
     Foc_SetElectricalAngle(motor, 0.0f);
     Foc_RefreshTrigCache(motor);
 #else
     Foc_RefreshTrigCache(motor);
-    FOC_Park_Transform(motor);
+    FOC_Park_Transform_Fx(motor);
 
-    motor->u_dq.d = 0.0f;
-    motor->u_dq.q = FOC_VoltageToPu(PWM_VBUS * 0.35f);
+    foc_set_udq_fx(motor, 0, FOC_Q15FromVoltagePu(FOC_VoltageToPu(PWM_VBUS * 0.35f)));
 
     Foc_AdvanceOpenLoopAngle(motor, dt);
 #endif
 
     // 3. 反Park变换
-    FOC_InvPark_Transform(motor);
+    FOC_InvPark_Transform_Fx(motor);
     // 4. SVPWM生成并输出
-    FOC_SVPWM_Generate(motor);
+    FOC_SVPWM_Generate_Fx(motor);
     return foc_state;
 }
 
@@ -732,7 +785,6 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     float pi_limit;
     float pi_limit_sq;
     float voltage_mag;
-    float voltage_scale;
     
     if(motor->close_cnt < 500)
     {
@@ -750,7 +802,7 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     foc_state = Foc_Preprocess_CurrentSample(motor);
 
     // Clark变换，
-    FOC_Clark_Transform(motor);
+    FOC_Clark_Transform_Fx(motor);
 
     uint8_t trig_dirty = 0U;
 
@@ -773,14 +825,15 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     if (trig_dirty != 0U)
         Foc_RefreshTrigCache(motor);
 
-    FOC_Park_Transform(motor);
+    FOC_Park_Transform_Fx(motor);
 #ifdef HFI_ENABLE // HFI使能
     HFI_Process_Current(motor, dt);
 #endif
 
+#ifdef FOC_POSITION_PI_EN
     if (motor->control_mode == FOC_CONTROL_POSITION)
     {
-        float position_error = motor->target_position - motor->position; // 位置误差
+        float position_error = motor->target_position - motor->position;
         uint8_t position_crossed = (motor->position_dir != 0.0f && position_error * motor->position_dir <= POSITION_DEADBAND_RAD);
 #ifdef HFI_ENABLE
         if (motor->hfi_enable)
@@ -797,6 +850,9 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
             motor->pi_position.output = 0.0f;
             motor->pi_q.target = 0.0f;
             motor->pi_q.integral = 0.0f;
+            motor->pi_q_fx.target = 0;
+            motor->pi_q_fx.integral = 0;
+            motor->pi_q_fx.output = 0;
             motor->position_dir = 0.0f;
             motor->control_mode = FOC_CONTROL_SPEED;
             motor->hal.pwm_set_duty(motor->num, PWM_ARR / 2, PWM_ARR / 2, PWM_ARR / 2);
@@ -804,15 +860,16 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
             return foc_state;
         }
     }
+#endif
 
 // 6. 速度环已搬到前台主循环，ISR 内只保留电流环
     motor->pi_d.target = 0.0f;
 
-#ifdef FW_ENABLE
+#ifdef FW_ENABLE // 弱磁
     FOC_FieldWeakening(motor, TS);
 #endif
 
-#ifdef FOC_CLOSE_I_DEBUG_EN
+#ifdef FOC_CLOSE_I_DEBUG_EN // 闭环电流环调试代码
     vofa_cnt++;
     if(vofa_cnt >= 17000 && vofa_cnt < 34000)
     {
@@ -823,7 +880,7 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
     else
         vofa_cnt = 0;
     motor->pi_d.target = 0.0f;
-#elif defined(FW_ENABLE)
+#elif defined(FW_ENABLE) // 弱磁
     float id_target = motor->pi_d.target;
     float iq_target_limit;
 
@@ -854,77 +911,50 @@ foc_state_t Foc_Close_Loop(foc_handle_t *motor, float dt)
 #endif
 
     // 6. 电流环PI调节
-    motor->pi_d.feedback = motor->i_dq.d;
-    motor->pi_q.feedback = motor->i_dq.q;
     motor->pi_d.limit = pi_limit;
     motor->pi_q.limit = pi_limit;
+    motor->pi_d_fx.limit = FOC_Q15FromVoltagePu(pi_limit);
+    motor->pi_q_fx.limit = motor->pi_d_fx.limit;
+    motor->pi_d_fx.feedback = motor->i_dq_fx.d;
+    motor->pi_q_fx.feedback = motor->i_dq_fx.q;
+    foc_sync_current_targets_to_fx(motor);
 
-    {
-        float error = motor->pi_d.target - motor->i_dq.d;
-        float integral = motor->pi_d.integral + motor->pi_d.ki * error * dt;
+    FOC_PI_Regulator_Fx(&motor->pi_d_fx);
+    FOC_PI_Regulator_Fx(&motor->pi_q_fx);
+    foc_sync_pi_shadow_from_fx(&motor->pi_d, &motor->pi_d_fx);
+    foc_sync_pi_shadow_from_fx(&motor->pi_q, &motor->pi_q_fx);
 
-        if (integral > pi_limit)
-            integral = pi_limit;
-        else if (integral < -pi_limit)
-            integral = -pi_limit;
-
-        float output = motor->pi_d.kp * error + integral;
-        float limited_output = output;
-        if (limited_output > pi_limit)
-            limited_output = pi_limit;
-        else if (limited_output < -pi_limit)
-            limited_output = -pi_limit;
-
-        if (output == limited_output || (output > pi_limit && error < 0.0f) || (output < -pi_limit && error > 0.0f))
-            motor->pi_d.integral = integral;
-
-        motor->pi_d.output = limited_output;
-    }
-
-    {
-        float error = motor->pi_q.target - motor->i_dq.q;
-        float integral = motor->pi_q.integral + motor->pi_q.ki * error * dt;
-
-        if (integral > pi_limit)
-            integral = pi_limit;
-        else if (integral < -pi_limit)
-            integral = -pi_limit;
-
-        float output = motor->pi_q.kp * error + integral;
-        float limited_output = output;
-        if (limited_output > pi_limit)
-            limited_output = pi_limit;
-        else if (limited_output < -pi_limit)
-            limited_output = -pi_limit;
-
-        if (output == limited_output || (output > pi_limit && error < 0.0f) || (output < -pi_limit && error > 0.0f))
-            motor->pi_q.integral = integral;
-
-        motor->pi_q.output = limited_output;
-    }
-
-    motor->u_dq.d = motor->pi_d.output;
-    motor->u_dq.q = motor->pi_q.output;
+    foc_set_udq_fx(motor, motor->pi_d_fx.output, motor->pi_q_fx.output);
 
     voltage_mag = motor->u_dq.d * motor->u_dq.d + motor->u_dq.q * motor->u_dq.q;
     if (voltage_mag > pi_limit_sq)
     {
-        voltage_mag = FOC_FastNorm(motor->u_dq.d, motor->u_dq.q);
-        voltage_scale = pi_limit / voltage_mag;
-        motor->u_dq.d *= voltage_scale;
-        motor->u_dq.q *= voltage_scale;
-        motor->pi_d.output = motor->u_dq.d;
-        motor->pi_q.output = motor->u_dq.q;
+        foc_q15_t voltage_mag_fx = FOC_FastNorm_Fx(motor->u_dq_fx.d, motor->u_dq_fx.q);
+        foc_q15_t pi_limit_fx = motor->pi_d_fx.limit;
+        if (voltage_mag_fx != 0)
+        {
+            foc_accum_t scale_fx = ((foc_accum_t)pi_limit_fx << 15) / voltage_mag_fx;
+            motor->u_dq_fx.d = FOC_Q15Clamp((scale_fx * motor->u_dq_fx.d + FOC_Q15_ROUND) >> 15);
+            motor->u_dq_fx.q = FOC_Q15Clamp((scale_fx * motor->u_dq_fx.q + FOC_Q15_ROUND) >> 15);
+            motor->pi_d_fx.output = motor->u_dq_fx.d;
+            motor->pi_q_fx.output = motor->u_dq_fx.q;
+            foc_set_udq_fx(motor, motor->u_dq_fx.d, motor->u_dq_fx.q);
+            foc_sync_pi_shadow_from_fx(&motor->pi_d, &motor->pi_d_fx);
+            foc_sync_pi_shadow_from_fx(&motor->pi_q, &motor->pi_q_fx);
+        }
     }
-#ifdef HFI_ENABLE
+#ifdef HFI_ENABLE // 高频注入
     HFI_Add_Voltage(motor, dt);
+    foc_set_udq_fx(motor,
+        FOC_Q15FromVoltagePu(motor->u_dq.d),
+        FOC_Q15FromVoltagePu(motor->u_dq.q));
 #endif
 
     // 7. 反Park变换
-    FOC_InvPark_Transform(motor);
+    FOC_InvPark_Transform_Fx(motor);
 
     // 8. SVPWM生成并输出
-    FOC_SVPWM_Generate(motor);
+    FOC_SVPWM_Generate_Fx(motor);
     return foc_state;
 }
 
@@ -946,6 +976,12 @@ foc_state_t Foc_Stop(uint8_t motor_num)
     motor->control_mode = FOC_CONTROL_SPEED;
     motor->pi_position.integral = 0.0f;
     motor->pi_position.output = 0.0f;
+    motor->pi_d_fx.target = 0;
+    motor->pi_d_fx.integral = 0;
+    motor->pi_d_fx.output = 0;
+    motor->pi_q_fx.target = 0;
+    motor->pi_q_fx.integral = 0;
+    motor->pi_q_fx.output = 0;
     motor->position_dir = 0.0f;
 #ifdef HFI_ENABLE
     HFI_Disable(motor);

@@ -12,6 +12,7 @@
 #ifndef __FOC_UTILS_H__
 #define __FOC_UTILS_H__ 
 
+#include "foc_types.h"
 #include "foc_config.h"
 
 #ifdef __cplusplus
@@ -28,17 +29,76 @@ extern "C" {
 #define DEAD_COMP_V         (PWM_VBUS * BTN7960_DEAD_TIME_S / TS)
 #define PI_LIMIT            (PWM_VBUS * 0.95f / SQRT_3)                                     // 最大不失真电压 
 #define SVPWM_K             (SQRT_3 * PWM_ARR / PWM_VBUS)
-#define FOC_CURRENT_LIMIT_PU 1.0f
-#define FOC_VOLTAGE_LIMIT_PU 1.0f
+#define FOC_CURRENT_LIMIT_PU 1.0f                                                           // 标幺电流限幅
+#define FOC_VOLTAGE_LIMIT_PU 1.0f                                                           // 标幺电压限幅
 #define CURRENT_TARGET_LIMIT_PU (CURRENT_TARGET_LIMIT / FOC_CURRENT_BASE_A)
-#define FW_ID_MAX_PU        (FW_ID_MAX / FOC_CURRENT_BASE_A)
-#define HFI_INJECTION_VOLTAGE_PU (HFI_INJECTION_VOLTAGE / FOC_VOLTAGE_BASE_V)
-#define HFI_IQ_HF_LIMIT_PU  (HFI_IQ_HF_LIMIT / FOC_CURRENT_BASE_A)
-#define HFI_MIN_RESPONSE_PU (HFI_MIN_RESPONSE / FOC_CURRENT_BASE_A)
-#define PI_KP_D_PU          (PI_KP_D * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
-#define PI_KI_D_PU          (PI_KI_D * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
-#define PI_KP_Q_PU          (PI_KP_Q * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
-#define PI_KI_Q_PU          (PI_KI_Q * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)
+#define FW_ID_MAX_PU        (FW_ID_MAX / FOC_CURRENT_BASE_A)                                // 标幺弱磁电流限幅
+#define HFI_INJECTION_VOLTAGE_PU (HFI_INJECTION_VOLTAGE / FOC_VOLTAGE_BASE_V)               // 标幺d轴高频注入电压(V)
+#define HFI_IQ_HF_LIMIT_PU  (HFI_IQ_HF_LIMIT / FOC_CURRENT_BASE_A)                          // 标幺高频电流保护阈值(A)
+#define HFI_MIN_RESPONSE_PU (HFI_MIN_RESPONSE / FOC_CURRENT_BASE_A)                         // 标幺HFI解调响应有效阈值
+#define PI_KP_D_PU          (PI_KP_D * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)             // 标幺d轴kp参数
+#define PI_KI_D_PU          (PI_KI_D * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)             // 标幺d轴ki参数
+#define PI_KP_Q_PU          (PI_KP_Q * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)             // 标幺q轴kp参数
+#define PI_KI_Q_PU          (PI_KI_Q * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)             // 标幺q轴ki参数
+#define PI_KI_D_DT_PU       (PI_KI_D_PU * TS)                                               // 离散d轴ki*dt
+#define PI_KI_Q_DT_PU       (PI_KI_Q_PU * TS)                                               // 离散q轴ki*dt
+#define FOC_Q15_SCALE       32768.0f
+#define FOC_Q16_16_SCALE    65536.0f
+#define FOC_Q15_SHIFT       15
+#define FOC_Q15_ROUND       (1 << (FOC_Q15_SHIFT - 1))
+#define FOC_Q15_MAX         32767
+#define FOC_Q15_MIN         (-32768)
+#define FOC_INV_SQRT3_Q15   18919
+#define FOC_SQRT3_2_Q15     28378
+#define FOC_FAST_NORM_GAIN_Q15 12288
+#define FOC_ADC_TO_CURRENT_PU_Q20 ((int32_t)(CURRENT_SCALE * ((float)(1 << 20) / FOC_CURRENT_BASE_A) + 0.5f))
+
+static inline foc_q15_t FOC_Q15Clamp(int32_t value)
+{
+    if (value > FOC_Q15_MAX)
+        return FOC_Q15_MAX;
+    if (value < FOC_Q15_MIN)
+        return FOC_Q15_MIN;
+    return (foc_q15_t)value;
+}
+
+static inline foc_q15_t FOC_FloatToQ15(float value)
+{
+    float scaled = value * FOC_Q15_SCALE;
+
+    if (scaled >= (float)FOC_Q15_MAX)
+        return FOC_Q15_MAX;
+    if (scaled <= (float)FOC_Q15_MIN)
+        return FOC_Q15_MIN;
+    return (foc_q15_t)scaled;
+}
+
+static inline float FOC_Q15ToFloat(foc_q15_t value)
+{
+    return (float)value / FOC_Q15_SCALE;
+}
+
+static inline foc_accum_t FOC_FloatToQ16_16(float value)
+{
+    return (foc_accum_t)(value * FOC_Q16_16_SCALE);
+}
+
+static inline foc_q15_t FOC_Q15Mul(foc_q15_t a, foc_q15_t b)
+{
+    int32_t product = (int32_t)a * (int32_t)b;
+    product += (1 << 14);
+    return FOC_Q15Clamp(product >> 15);
+}
+
+static inline foc_q15_t FOC_Q15FromCurrentPu(float current_pu)
+{
+    return FOC_FloatToQ15(current_pu);
+}
+
+static inline foc_q15_t FOC_Q15FromVoltagePu(float voltage_pu)
+{
+    return FOC_FloatToQ15(voltage_pu);
+}
 
 static inline float FOC_CurrentToPu(float current_a)
 {

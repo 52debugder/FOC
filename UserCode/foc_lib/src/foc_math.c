@@ -27,11 +27,22 @@
 #define FOC_VOLTAGE_FROM_Q15    (CURRENT_PI_LIMIT / 32768.0f)
 #define FOC_Q15_SQRT3_2         28378
 #define FOC_SVPWM_K_COUNT       ((int32_t)(CURRENT_PI_LIMIT * SQRT_3 * PWM_ARR / PWM_VBUS + 0.5f))
-#define FOC_SVPWM_K             (SQRT_3 * PWM_ARR / PWM_VBUS)
+#define FOC_SVPWM_K             (0.95f * PWM_ARR)
+// #define FOC_SVPWM_K             (SQRT_3 * PWM_ARR / PWM_VBUS)
 
 static float FOC_Abs(float x)
 {
     return (x >= 0.0f) ? x : -x;
+}
+
+static int32_t FOC_Q15Abs32(foc_q15_t value)
+{
+    return (value >= 0) ? value : -(int32_t)value;
+}
+
+static foc_q15_t FOC_Q15FromAccum(foc_accum_t value)
+{
+    return FOC_Q15Clamp(value);
 }
 
 static float FOC_FastAtan(float x)
@@ -148,6 +159,18 @@ void FOC_Clark_Transform(foc_handle_t *motor)
     motor->i_ab.beta = -(iu + 2.0f * iw) * FOC_INV_SQRT3;
 }
 
+void FOC_Clark_Transform_Fx(foc_handle_t *motor)
+{
+    int32_t iu = motor->i_uvw_fx.u;
+    int32_t iw = motor->i_uvw_fx.w;
+    int32_t beta_input = iu + (iw << 1);
+
+    motor->i_ab_fx.alpha = motor->i_uvw_fx.u;
+    motor->i_ab_fx.beta = FOC_Q15Clamp(-((beta_input * FOC_INV_SQRT3_Q15 + FOC_Q15_ROUND) >> FOC_Q15_SHIFT));
+    motor->i_ab.alpha = FOC_Q15ToFloat(motor->i_ab_fx.alpha);
+    motor->i_ab.beta = FOC_Q15ToFloat(motor->i_ab_fx.beta);
+}
+
 /**
  * @brief park变换
  * 
@@ -162,6 +185,17 @@ void FOC_Park_Transform(foc_handle_t *motor)
     motor->i_dq.q = -motor->i_ab.alpha * sin_theta + motor->i_ab.beta * cos_theta;
 }
 
+void FOC_Park_Transform_Fx(foc_handle_t *motor)
+{
+    foc_accum_t d = (foc_accum_t)motor->i_ab_fx.alpha * motor->cos_theta_fx + (foc_accum_t)motor->i_ab_fx.beta * motor->sin_theta_fx;
+    foc_accum_t q = -(foc_accum_t)motor->i_ab_fx.alpha * motor->sin_theta_fx + (foc_accum_t)motor->i_ab_fx.beta * motor->cos_theta_fx;
+
+    motor->i_dq_fx.d = FOC_Q15FromAccum((d + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+    motor->i_dq_fx.q = FOC_Q15FromAccum((q + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+    motor->i_dq.d = FOC_Q15ToFloat(motor->i_dq_fx.d);
+    motor->i_dq.q = FOC_Q15ToFloat(motor->i_dq_fx.q);
+}
+
 /**
  * @brief 反park变换
  * 
@@ -174,6 +208,17 @@ void FOC_InvPark_Transform(foc_handle_t *motor)
 
     motor->u_ab.alpha = motor->u_dq.d * cos_theta - motor->u_dq.q * sin_theta;
     motor->u_ab.beta = motor->u_dq.d * sin_theta + motor->u_dq.q * cos_theta;
+}
+
+void FOC_InvPark_Transform_Fx(foc_handle_t *motor)
+{
+    foc_accum_t alpha = (foc_accum_t)motor->u_dq_fx.d * motor->cos_theta_fx - (foc_accum_t)motor->u_dq_fx.q * motor->sin_theta_fx;
+    foc_accum_t beta = (foc_accum_t)motor->u_dq_fx.d * motor->sin_theta_fx + (foc_accum_t)motor->u_dq_fx.q * motor->cos_theta_fx;
+
+    motor->u_ab_fx.alpha = FOC_Q15FromAccum((alpha + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+    motor->u_ab_fx.beta = FOC_Q15FromAccum((beta + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+    motor->u_ab.alpha = FOC_Q15ToFloat(motor->u_ab_fx.alpha);
+    motor->u_ab.beta = FOC_Q15ToFloat(motor->u_ab_fx.beta);
 }
 
 /**
@@ -199,6 +244,33 @@ void FOC_PI_Regulator(foc_pid_t *pi, float dt)
     pi->output = limited_output;
 }
 
+void FOC_PI_Regulator_Fx(foc_pid_fx_t *pi)
+{
+    foc_accum_t error = (foc_accum_t)pi->target - pi->feedback;
+    foc_accum_t integral_delta = ((int64_t)pi->ki_dt * error + (1 << 15)) >> 16;
+    foc_accum_t integral = pi->integral + integral_delta;
+    foc_accum_t limit = pi->limit;
+    foc_accum_t output;
+    foc_accum_t limited_output;
+
+    if (integral > limit)
+        integral = limit;
+    else if (integral < -limit)
+        integral = -limit;
+
+    output = (((int64_t)pi->kp * error + (1 << 15)) >> 16) + integral;
+    limited_output = output;
+    if (limited_output > limit)
+        limited_output = limit;
+    else if (limited_output < -limit)
+        limited_output = -limit;
+
+    if (output == limited_output || (output > limit && error < 0) || (output < -limit && error > 0))
+        pi->integral = integral;
+
+    pi->output = FOC_Q15FromAccum(limited_output);
+}
+
 /**
  * @brief SVPWM正弦波生成
  * 
@@ -206,16 +278,16 @@ void FOC_PI_Regulator(foc_pid_t *pi, float dt)
  */
 void FOC_SVPWM_Generate(foc_handle_t *motor)
 {
-    float u_alpha = FOC_VoltageFromPu(motor->u_ab.alpha);
-    float u_beta = FOC_VoltageFromPu(motor->u_ab.beta);
+    // float u_alpha = FOC_VoltageFromPu(motor->u_ab.alpha);
+    // float u_beta = FOC_VoltageFromPu(motor->u_ab.beta);
     uint16_t Ta, Tb, Tc;
     uint16_t Tx = 0.0f, Ty = 0.0f;
     uint8_t sector;
 
     // float k = SQRT_3 * PWM_ARR / PWM_VBUS;
-    float U1 = u_beta;
-    float U2 = -SQRT_3_2 * u_alpha - u_beta / 2.0f;
-    float U3 = SQRT_3_2 * u_alpha - u_beta / 2.0f;
+    float U1 = motor->u_ab.beta;
+    float U2 = -SQRT_3_2 * motor->u_ab.alpha - motor->u_ab.beta / 2.0f;
+    float U3 = SQRT_3_2 * motor->u_ab.alpha - motor->u_ab.beta / 2.0f;
 
     uint8_t A = U1 > 0 ? 1 : 0;
     uint8_t B = U2 > 0 ? 1 : 0;
@@ -292,6 +364,93 @@ void FOC_SVPWM_Generate(foc_handle_t *motor)
     motor->pwm.duty_u = (motor->pwm.duty_u > PWM_ARR) ? PWM_ARR : motor->pwm.duty_u;
     motor->pwm.duty_v = (motor->pwm.duty_v > PWM_ARR) ? PWM_ARR : motor->pwm.duty_v;
     motor->pwm.duty_w = (motor->pwm.duty_w > PWM_ARR) ? PWM_ARR : motor->pwm.duty_w;
+
+    motor->hal.pwm_set_duty(motor->num, motor->pwm.duty_u, motor->pwm.duty_v, motor->pwm.duty_w);
+}
+
+void FOC_SVPWM_Generate_Fx(foc_handle_t *motor)
+{
+    uint16_t Ta, Tb, Tc;
+    uint16_t Tx = 0U, Ty = 0U;
+    uint8_t sector;
+    foc_accum_t U1 = motor->u_ab_fx.beta;
+    foc_accum_t U2 = -(((foc_accum_t)FOC_Q15_SQRT3_2 * motor->u_ab_fx.alpha + FOC_Q15_ROUND) >> FOC_Q15_SHIFT) - (motor->u_ab_fx.beta >> 1);
+    foc_accum_t U3 = (((foc_accum_t)FOC_Q15_SQRT3_2 * motor->u_ab_fx.alpha + FOC_Q15_ROUND) >> FOC_Q15_SHIFT) - (motor->u_ab_fx.beta >> 1);
+    uint8_t A = U1 > 0 ? 1U : 0U;
+    uint8_t B = U2 > 0 ? 1U : 0U;
+    uint8_t C = U3 > 0 ? 1U : 0U;
+    uint8_t N = A + B * 2U + C * 4U;
+
+    switch (N)
+    {
+        case 1: sector = 2; break;
+        case 2: sector = 6; break;
+        case 3: sector = 1; break;
+        case 4: sector = 4; break;
+        case 5: sector = 3; break;
+        case 6: sector = 5; break;
+        default: sector = 0; break;
+    }
+
+    switch (sector)
+    {
+        case 1:
+            Tx = (uint16_t)(((int32_t)U2 * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            Ty = (uint16_t)(((int32_t)U1 * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            break;
+        case 2:
+            Tx = (uint16_t)(((-(int32_t)U2) * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            Ty = (uint16_t)(((-(int32_t)U3) * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            break;
+        case 3:
+            Tx = (uint16_t)(((int32_t)U1 * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            Ty = (uint16_t)(((int32_t)U3 * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            break;
+        case 4:
+            Tx = (uint16_t)(((-(int32_t)U1) * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            Ty = (uint16_t)(((-(int32_t)U2) * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            break;
+        case 5:
+            Tx = (uint16_t)(((int32_t)U3 * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            Ty = (uint16_t)(((int32_t)U2 * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            break;
+        case 6:
+            Tx = (uint16_t)(((-(int32_t)U3) * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            Ty = (uint16_t)(((-(int32_t)U1) * FOC_SVPWM_K_COUNT + FOC_Q15_ROUND) >> FOC_Q15_SHIFT);
+            break;
+        default:
+            break;
+    }
+
+    if ((uint32_t)Tx + (uint32_t)Ty > PWM_ARR)
+    {
+        uint32_t sum = (uint32_t)Tx + (uint32_t)Ty;
+        Tx = (uint16_t)((uint32_t)Tx * PWM_ARR / sum);
+        Ty = (uint16_t)((uint32_t)Ty * PWM_ARR / sum);
+    }
+
+    Ta = (uint16_t)((PWM_ARR + Tx + Ty) / 2U);
+    Tb = (uint16_t)(Ta - Tx);
+    Tc = (uint16_t)(Tb - Ty);
+
+    switch(sector)
+    {
+        case 1: motor->pwm.duty_u = Ta; motor->pwm.duty_v = Tb; motor->pwm.duty_w = Tc; break;
+        case 2: motor->pwm.duty_u = Tb; motor->pwm.duty_v = Ta; motor->pwm.duty_w = Tc; break;
+        case 3: motor->pwm.duty_u = Tc; motor->pwm.duty_v = Ta; motor->pwm.duty_w = Tb; break;
+        case 4: motor->pwm.duty_u = Tc; motor->pwm.duty_v = Tb; motor->pwm.duty_w = Ta; break;
+        case 5: motor->pwm.duty_u = Tb; motor->pwm.duty_v = Tc; motor->pwm.duty_w = Ta; break;
+        case 6: motor->pwm.duty_u = Ta; motor->pwm.duty_v = Tc; motor->pwm.duty_w = Tb; break;
+        default:
+            motor->pwm.duty_u = PWM_ARR / 2U;
+            motor->pwm.duty_v = PWM_ARR / 2U;
+            motor->pwm.duty_w = PWM_ARR / 2U;
+            break;
+    }
+
+    if (motor->pwm.duty_u > PWM_ARR) motor->pwm.duty_u = PWM_ARR;
+    if (motor->pwm.duty_v > PWM_ARR) motor->pwm.duty_v = PWM_ARR;
+    if (motor->pwm.duty_w > PWM_ARR) motor->pwm.duty_w = PWM_ARR;
 
     motor->hal.pwm_set_duty(motor->num, motor->pwm.duty_u, motor->pwm.duty_v, motor->pwm.duty_w);
 }
@@ -404,11 +563,23 @@ float FOC_FastNorm(float alpha, float beta)
     return max_val + min_val * FOC_FAST_NORM_GAIN;
 }
 
+foc_q15_t FOC_FastNorm_Fx(foc_q15_t alpha, foc_q15_t beta)
+{
+    int32_t abs_alpha = FOC_Q15Abs32(alpha);
+    int32_t abs_beta = FOC_Q15Abs32(beta);
+    int32_t max_val = (abs_alpha > abs_beta) ? abs_alpha : abs_beta;
+    int32_t min_val = (abs_alpha > abs_beta) ? abs_beta : abs_alpha;
+
+    return FOC_Q15Clamp(max_val + ((min_val * FOC_FAST_NORM_GAIN_Q15 + FOC_Q15_ROUND) >> FOC_Q15_SHIFT));
+}
+
 void FOC_Updata_Trig(foc_handle_t *motor)
 {
-    motor->trig = FOC_Trig_Functions(FOC_RadToQ15Angle(motor->theta));
-    motor->sin_theta = (float)motor->trig.hSin * FOC_Q15_TO_FLOAT;
-    motor->cos_theta = (float)motor->trig.hCos * FOC_Q15_TO_FLOAT;
+    motor->trig = FOC_Trig_Functions(motor->theta_fx);
+    motor->sin_theta_fx = motor->trig.hSin;
+    motor->cos_theta_fx = motor->trig.hCos;
+    motor->sin_theta = (float)motor->sin_theta_fx * FOC_Q15_TO_FLOAT;
+    motor->cos_theta = (float)motor->cos_theta_fx * FOC_Q15_TO_FLOAT;
 }
 
 float FOC_fmod(float *x, float y)
