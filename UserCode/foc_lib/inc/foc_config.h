@@ -91,8 +91,8 @@ extern "C" {
 
 // 速度环参数
 #define FOC_SPEED_BASE_RPM      3000.0f        // 速度基值(rpm)，速度环标幺化用
-#define PI_KP_SPEED             0.002f         // 速度PI比例系数(A/rpm，物理量)
-#define PI_KI_SPEED             0.007f          // 速度PI积分系数(A/rpm/s，物理量)
+#define PI_KP_SPEED             0.001f         // 速度PI比例系数(A/rpm，物理量)
+#define PI_KI_SPEED             0.0084f          // 速度PI积分系数(A/rpm/s，物理量)
 #define PI_LIMIT_SPEED          CURRENT_TARGET_LIMIT // 速度PI输出限幅(A)
 
 // 位置环参数

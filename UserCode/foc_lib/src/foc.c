@@ -1215,6 +1215,9 @@ foc_state_t Foc_GetCurrentLoopDebug(uint8_t motor_num, foc_current_loop_debug_t 
         return FOC_ERR_INVALID_PARAM;
 
     motor = &FOC_Motor[motor_num];
+    debug->speed = motor->speed;
+    debug->speed_feedback = FOC_Q16ToSpeedRpm(motor->pi_speed_fx.feedback);
+    debug->speed_target = FOC_Q16ToSpeedRpm(motor->pi_speed_fx.target);
     debug->id = FOC_Q15ToCurrent(motor->i_dq_fx.d);
     debug->id_target = FOC_Q15ToCurrent(motor->pi_d_fx.target);
     debug->id_feedback = FOC_Q15ToCurrent(motor->pi_d_fx.feedback);

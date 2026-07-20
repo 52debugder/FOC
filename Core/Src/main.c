@@ -104,7 +104,7 @@ int main(void)
   Foc_Init(1, &foc_hal);
 
   HAL_Delay(50); // 延时防止还没有初始化完就进入中断
-  Foc_Set_Speed(1, 300.0f);
+  Foc_Set_Speed(1, 400.0f);
   // uint8_t uart_test_data[] = {'2'};
   // float angle = 1.0f;
   /* USER CODE END 2 */

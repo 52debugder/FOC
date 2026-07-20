@@ -16,6 +16,9 @@ extern "C"{
 
 typedef struct
 {
+    float speed;
+    float speed_target;
+    float speed_feedback;
     float id;
     float id_target;
     float id_feedback;

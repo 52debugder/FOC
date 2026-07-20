@@ -132,6 +132,16 @@ static inline float FOC_VoltageFromPu(float voltage_pu)
     return voltage_pu * FOC_VOLTAGE_BASE_V;
 }
 
+static inline float FOC_SpeedRpmToPu(float speed_rpm)
+{
+    return speed_rpm / FOC_SPEED_BASE_RPM;
+}
+
+static inline float FOC_SpeedPuToRpm(float speed_pu)
+{
+    return speed_pu * FOC_SPEED_BASE_RPM;
+}
+
 static inline foc_q15_t FOC_Q15FromCurrent(float current_a)
 {
     return FOC_FloatToQ15(current_a / FOC_CURRENT_BASE_A);
@@ -152,14 +162,14 @@ static inline float FOC_Q15ToVoltage(foc_q15_t voltage_q15)
     return FOC_Q15ToFloat(voltage_q15) * FOC_VOLTAGE_BASE_V;
 }
 
-static inline float FOC_SpeedRpmToPu(float speed_rpm)
+static inline foc_q15_t FOC_Q16FromSpeedRpm(float speed_rpm)
 {
-    return speed_rpm / FOC_SPEED_BASE_RPM;
+    return FOC_FloatToQ16_16(speed_rpm / FOC_SPEED_BASE_RPM);
 }
 
-static inline float FOC_SpeedPuToRpm(float speed_pu)
+static inline float FOC_Q16ToSpeedRpm(foc_q15_t speed_q15)
 {
-    return speed_pu * FOC_SPEED_BASE_RPM;
+    return FOC_Q16_16ToFloat(speed_q15) * FOC_SPEED_BASE_RPM;
 }
 
 /**

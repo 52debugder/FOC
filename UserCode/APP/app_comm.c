@@ -59,9 +59,9 @@ void app_debug_print(void)
         __enable_irq();
         return;
     }
-    sample.u = debug.iq_target;
-    sample.v = debug.Sensor_zero_offset_locked;
-    sample.w = debug.id;
+    sample.u = debug.speed_target;
+    sample.v = debug.speed_feedback;
+    sample.w = debug.speed;
     app_debug_sample_pending = 0U;
     __enable_irq();
 
