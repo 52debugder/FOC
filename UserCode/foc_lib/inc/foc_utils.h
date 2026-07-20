@@ -42,6 +42,13 @@ extern "C" {
 #define PI_KI_Q_PU          (PI_KI_Q * FOC_CURRENT_BASE_A / FOC_VOLTAGE_BASE_V)             // 标幺q轴ki参数
 #define PI_KI_D_DT_PU       (PI_KI_D_PU * TS)                                               // 离散d轴ki*dt
 #define PI_KI_Q_DT_PU       (PI_KI_Q_PU * TS)                                               // 离散q轴ki*dt
+#define PI_KP_SPEED_PU      (PI_KP_SPEED * FOC_SPEED_BASE_RPM / FOC_CURRENT_BASE_A)         // 标幺速度环kp (pu电流/pu速度)
+#define PI_KI_SPEED_PU      (PI_KI_SPEED * FOC_SPEED_BASE_RPM / FOC_CURRENT_BASE_A)         // 标幺速度环ki (pu电流/pu速度/s)
+#define PI_LIMIT_SPEED_PU   (PI_LIMIT_SPEED / FOC_CURRENT_BASE_A)                           // 标幺速度环输出限幅(pu电流)
+#define PI_KP_POSITION_PU   (PI_KP_POSITION / FOC_SPEED_BASE_RPM)                           // 标幺位置环kp (pu速度/rad)
+#define PI_KI_POSITION_PU   (PI_KI_POSITION / FOC_SPEED_BASE_RPM)                           // 标幺位置环ki (pu速度/rad/s)
+#define PI_LIMIT_POSITION_PU (PI_LIMIT_POSITION_RPM / FOC_SPEED_BASE_RPM)                   // 标幺位置环输出限幅(pu速度)
+
 #define FOC_Q15_SCALE       32768.0f
 #define FOC_Q16_16_SCALE    65536.0f
 #define FOC_Q15_SHIFT       15
@@ -83,6 +90,11 @@ static inline foc_accum_t FOC_FloatToQ16_16(float value)
     return (foc_accum_t)(value * FOC_Q16_16_SCALE);
 }
 
+static inline float FOC_Q16_16ToFloat(foc_accum_t value)
+{
+    return (float)value / FOC_Q16_16_SCALE;
+}
+
 static inline foc_q15_t FOC_Q15Mul(foc_q15_t a, foc_q15_t b)
 {
     int32_t product = (int32_t)a * (int32_t)b;
@@ -118,6 +130,36 @@ static inline float FOC_VoltageToPu(float voltage_v)
 static inline float FOC_VoltageFromPu(float voltage_pu)
 {
     return voltage_pu * FOC_VOLTAGE_BASE_V;
+}
+
+static inline foc_q15_t FOC_Q15FromCurrent(float current_a)
+{
+    return FOC_FloatToQ15(current_a / FOC_CURRENT_BASE_A);
+}
+
+static inline foc_q15_t FOC_Q15FromVoltage(float voltage_v)
+{
+    return FOC_FloatToQ15(voltage_v / FOC_VOLTAGE_BASE_V);
+}
+
+static inline float FOC_Q15ToCurrent(foc_q15_t current_q15)
+{
+    return FOC_Q15ToFloat(current_q15) * FOC_CURRENT_BASE_A;
+}
+
+static inline float FOC_Q15ToVoltage(foc_q15_t voltage_q15)
+{
+    return FOC_Q15ToFloat(voltage_q15) * FOC_VOLTAGE_BASE_V;
+}
+
+static inline float FOC_SpeedRpmToPu(float speed_rpm)
+{
+    return speed_rpm / FOC_SPEED_BASE_RPM;
+}
+
+static inline float FOC_SpeedPuToRpm(float speed_pu)
+{
+    return speed_pu * FOC_SPEED_BASE_RPM;
 }
 
 /**

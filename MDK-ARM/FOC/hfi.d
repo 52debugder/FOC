@@ -5,3 +5,5 @@ foc\hfi.o: D:\keil5\ARM\ARMCC\Bin\..\include\stdint.h
 foc\hfi.o: ../UserCode/foc_lib/inc/foc_config.h
 foc\hfi.o: D:\keil5\ARM\ARMCC\Bin\..\include\math.h
 foc\hfi.o: ../UserCode/foc_lib/inc/foc_hal.h
+foc\hfi.o: ../UserCode/foc_lib/inc/foc_math.h
+foc\hfi.o: ../UserCode/foc_lib/inc/foc_utils.h

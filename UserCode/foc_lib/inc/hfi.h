@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#ifdef HFI_ENABLE
+#if HFI_ENABLE
 void HFI_Init(foc_handle_t *motor);
 void HFI_Enable(foc_handle_t *motor);
 void HFI_Disable(foc_handle_t *motor);

@@ -107,7 +107,7 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
                        + b * (motor->u_ab.beta  - z_beta);
     
     // ===== 第4步：BEMF = 切换项的低通滤波 =====
-    #ifdef FOC_PLL_ENABLE
+    #if FOC_PLL_ENABLE
     float speed_rpm = FOC_AbsElecRadPerSecToMechRpm(motor->speed_observer);
     #else
     float speed_rpm = (motor->speed >= 0.0f) ? motor->speed : -motor->speed;
@@ -117,7 +117,7 @@ void SMO_Observer(foc_handle_t *motor, float dt, foc_mode_t mode)
     motor->e_ab.beta  += (z_beta  - motor->e_ab.beta)  * FOC_calc_dynamic_lpf(speed_rpm);
 
     // ===== 第5步：PLL=====
-    #ifdef FOC_PLL_ENABLE
+    #if FOC_PLL_ENABLE
 
     float theta_comp = motor->theta_Observer - calc_compensation_angle(motor->speed_observer);
     float cos_obs;

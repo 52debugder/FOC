@@ -86,6 +86,16 @@ typedef struct {
     foc_accum_t integral;
 } foc_pid_fx_t;
 
+typedef struct {
+    foc_accum_t kp;
+    foc_accum_t ki_dt;
+    foc_accum_t target;
+    foc_accum_t feedback;
+    foc_accum_t output;
+    foc_accum_t limit;
+    foc_accum_t integral;
+} foc_pid_q16_t;
+
 typedef struct
 {
     float u;
@@ -187,7 +197,9 @@ typedef struct
     foc_pid_fx_t            pi_d_fx;            // d轴电流PI（Q15）
     foc_pid_fx_t            pi_q_fx;            // q轴电流PI（Q15）
     foc_pid_t               pi_speed;           // 速度PI（rpm -> A）
+    foc_pid_q16_t           pi_speed_fx;        // 速度PI（Q16.16, rpm -> A）
     foc_pid_t               pi_position;        // 位置PI（rad -> rpm）
+    foc_pid_q16_t           pi_position_fx;     // 位置PI（Q16.16, rad -> rpm）
     foc_pid_t               pi_pll;             // 锁相环PI（电角rad/s）
 
     uint16_t                i_adc_u;            // ADC锁存后的相电流采样原始计数
@@ -224,7 +236,6 @@ typedef struct
     uint32_t                trig_sample_seq;   // trig缓存对应的传感器采样序号
     uint8_t                 trig_sample_valid; // trig缓存是否有效
 
-#ifdef HFI_ENABLE
     uint8_t                 hfi_enable;         // 高频注入使能
     uint8_t                 hfi_valid;          // 高频注入角度有效
     uint16_t                hfi_warmup_cnt;     // HFI滤波预热计数
@@ -239,7 +250,6 @@ typedef struct
     float                   hfi_demod;          // 同步解调低通结果
     float                   hfi_error;          // HFI角度误差
     float                   hfi_blend;          // HFI角度权重
-#endif
 
     /*运行计数*/
     uint32_t                state_timer;         // 运行状态定时器

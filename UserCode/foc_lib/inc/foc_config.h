@@ -7,16 +7,16 @@
 extern "C" {
 #endif
 
-#define FOC_SENSOR_EN                       // 使能传感器
-#define FOC_CLOSE_LOOP_EN                   // 使能闭环
-// #define FOC_POSITION_PI_EN
-#define FOC_SPEED_PI_EN                     // 使能速度环
-#define FOC_PLL_ENABLE                      // 使能锁相环
-// #define HFI_ENABLE                            // 使能高频注入低速角度估计
-// #define FOC_SMO_EN                          // 使能观测器
-// #define FOC_CLOSE_I_DEBUG_EN
-// #define FOC_OPEN_I_DEBUG_EN
-// #define FW_ENABLE                           // 使能弱磁
+#define FOC_SENSOR_EN               1      // 使能传感器
+#define FOC_CLOSE_LOOP_EN           1         // 使能闭环
+#define FOC_POSITION_PI_EN          0
+#define FOC_SPEED_PI_EN             1        // 使能速度环
+#define FOC_PLL_ENABLE              1        // 使能锁相环
+#define HFI_ENABLE                  0          // 使能高频注入低速角度估计
+#define FOC_SMO_EN                  0        // 使能观测器
+#define FOC_CLOSE_I_DEBUG_EN        0
+#define FOC_OPEN_I_DEBUG_EN         0
+#define FW_ENABLE                   0        // 使能弱磁
 
 
 // PWM参数
@@ -80,18 +80,19 @@ extern "C" {
 #define BTN7960_DEAD_TIME_S     0.0000005f 
 
 // 电流环参数
-#define CURRENT_LOOP_BANDWIDTH_HZ 500.0f       // 电流环带宽
+#define CURRENT_LOOP_BANDWIDTH_HZ 700.0f       // 电流环带宽
 #define CURRENT_LOOP_WC          (6.283185307f * CURRENT_LOOP_BANDWIDTH_HZ)
 #define CURRENT_LOOP_STEP_LOW_A  0.2f                           // 电流环阶跃响应的低响应
-#define CURRENT_LOOP_STEP_HIGH_A 1.0f                           // 电流环阶跃响应的高响应
+#define CURRENT_LOOP_STEP_HIGH_A 2.0f                           // 电流环阶跃响应的高响应
 #define PI_KP_D                 (MOTOR_L * CURRENT_LOOP_WC)
 #define PI_KI_D                 (MOTOR_R * CURRENT_LOOP_WC)
 #define PI_KP_Q                 (MOTOR_L * CURRENT_LOOP_WC)
 #define PI_KI_Q                 (MOTOR_R * CURRENT_LOOP_WC)
 
 // 速度环参数
-#define PI_KP_SPEED             0.002f         // 速度PI比例系数
-#define PI_KI_SPEED             0.007f          // 速度PI积分系数
+#define FOC_SPEED_BASE_RPM      3000.0f        // 速度基值(rpm)，速度环标幺化用
+#define PI_KP_SPEED             0.002f         // 速度PI比例系数(A/rpm，物理量)
+#define PI_KI_SPEED             0.007f          // 速度PI积分系数(A/rpm/s，物理量)
 #define PI_LIMIT_SPEED          CURRENT_TARGET_LIMIT // 速度PI输出限幅(A)
 
 // 位置环参数

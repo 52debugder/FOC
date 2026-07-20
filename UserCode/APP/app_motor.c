@@ -154,7 +154,7 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
         }
         else
         {
-            // app_debug_sample_from_isr();
+            app_debug_sample_from_isr();
         }
 
         GPIOB->BSRR = GPIO_PIN_0 << 16;

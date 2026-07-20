@@ -50,15 +50,18 @@ void app_debug_print(void)
     if ((app_debug_sample_pending == 0U) || (comm_uart_tx_is_idle() == 0U))
         return;
 
-    app_motor_telemetry_t telemetry;
+    foc_current_loop_debug_t debug;
     app_debug_sample_t sample;
 
-    app_motor_get_telemetry(1, &telemetry);
-
     __disable_irq();
-    sample.u = telemetry.target_speed_rpm;
-    sample.v = telemetry.measured_speed_rpm;
-    sample.w = (float)telemetry.sample_time_us;
+    if (Foc_GetCurrentLoopDebug(1, &debug) != FOC_OK)
+    {
+        __enable_irq();
+        return;
+    }
+    sample.u = debug.iq_target;
+    sample.v = debug.Sensor_zero_offset_locked;
+    sample.w = debug.id;
     app_debug_sample_pending = 0U;
     __enable_irq();
 
