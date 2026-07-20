@@ -167,9 +167,9 @@ static inline foc_q15_t FOC_Q16FromSpeedRpm(float speed_rpm)
     return FOC_FloatToQ16_16(speed_rpm / FOC_SPEED_BASE_RPM);
 }
 
-static inline float FOC_Q16ToSpeedRpm(foc_q15_t speed_q15)
+static inline float FOC_Q16ToSpeedRpm(foc_accum_t speed_q16)
 {
-    return FOC_Q16_16ToFloat(speed_q15) * FOC_SPEED_BASE_RPM;
+    return FOC_Q16_16ToFloat(speed_q16) * FOC_SPEED_BASE_RPM;
 }
 
 /**

@@ -12,15 +12,22 @@
 #include "app_motor.h"
 #include "app_comm.h"
 
-#define APP_MOTOR_SPEED_LPF_ALPHA 0.05f
+#define APP_MOTOR_SAMPLE_PERIOD_US      1000U   // AS5600角度采样周期，1ms更新一次速度环
+#define APP_MOTOR_STATUS_PERIOD_US      20000U  // AS5600磁场/AGC/幅值状态刷新周期，避免每拍多次I2C读取
+#define APP_MOTOR_LOW_SPEED_RPM         250.0f  // 低于该速度时使用累积窗口测速，降低编码器量化抖动
+#define APP_MOTOR_LOW_SPEED_MIN_DT_S    0.004f  // 低速测速最小累积时间，4ms内的角度差一起计算速度
+#define APP_MOTOR_SPEED_LPF_TAU_S       0.020f  // 速度一阶低通时间常数，越大越平滑但响应越慢
 
-static as5600_magnet_state_t app_motor_magnet_state;
-static float app_motor_last_angle_rad;
-static float app_motor_last_speed_rpm;
-static uint8_t app_motor_as5600_status;
-static uint8_t app_motor_as5600_agc;
-static uint16_t app_motor_as5600_magnitude;
-static uint32_t app_motor_last_tick_us;
+static as5600_magnet_state_t app_motor_magnet_state; // 最近一次AS5600磁场状态
+static float app_motor_last_angle_rad;               // 最近一次机械角度，单位rad
+static float app_motor_last_speed_rpm;               // 滤波后的机械速度反馈，单位rpm
+static float app_motor_speed_accum_delta_rad;        // 低速窗口累计机械角度变化，单位rad
+static float app_motor_speed_accum_dt_s;             // 低速窗口累计采样时间，单位s
+static uint8_t app_motor_as5600_status;              // 最近一次AS5600状态寄存器
+static uint8_t app_motor_as5600_agc;                 // 最近一次AS5600自动增益值
+static uint16_t app_motor_as5600_magnitude;          // 最近一次AS5600磁场幅值
+static uint32_t app_motor_last_tick_us;              // 最近一次进入电机主循环的时间戳，单位us
+static uint32_t app_motor_last_status_tick_us;       // 最近一次刷新AS5600状态信息的时间戳，单位us
 
 static float app_motor_wrap_delta_pm_pi(float delta)
 {
@@ -40,58 +47,88 @@ void app_foc_mainloop(void)
 
     app_motor_last_tick_us = now;
 
-    if(elapsed_us >= 1000U)
+    if(elapsed_us >= APP_MOTOR_SAMPLE_PERIOD_US)
     {
         float dt = (float)elapsed_us * 1e-6f;
+        uint16_t raw_angle;
         last_as5600_tick = now;
         foc_handle_t *foc_motor = Foc_GetStruct(1);
         if(foc_motor->init_done)
         {
-            as5600_data_t as5600_data;
             float angle_rad;
 
-            if (AS5600_ReadData(&as5600_data) != HAL_OK)
+            if (AS5600_ReadRawAngle(&raw_angle) != HAL_OK)
             {
                 __disable_irq();
                 foc_motor->sensor_mech.speed = 0.0f;
                 foc_motor->sensor_mech.vaild = 0.0f;
+                app_motor_speed_accum_delta_rad = 0.0f;
+                app_motor_speed_accum_dt_s = 0.0f;
                 __enable_irq();
                 return;
             }
 
-            angle_rad = AS5600_RawToRad(as5600_data.raw_angle);
-
-            if ((as5600_data.magnet_state == AS5600_MAGNET_NOT_DETECTED) ||
-                (as5600_data.magnet_state == AS5600_MAGNET_TOO_STRONG))
+            if ((uint32_t)(now - app_motor_last_status_tick_us) >= APP_MOTOR_STATUS_PERIOD_US)
             {
-                __disable_irq();
+                as5600_data_t as5600_data;
+                if (AS5600_ReadData(&as5600_data) != HAL_OK)
+                {
+                    __disable_irq();
+                    foc_motor->sensor_mech.speed = 0.0f;
+                    foc_motor->sensor_mech.vaild = 0.0f;
+                    app_motor_speed_accum_delta_rad = 0.0f;
+                    app_motor_speed_accum_dt_s = 0.0f;
+                    __enable_irq();
+                    return;
+                }
+
                 app_motor_as5600_status = as5600_data.status;
                 app_motor_as5600_agc = as5600_data.agc;
                 app_motor_as5600_magnitude = as5600_data.magnitude;
                 app_motor_magnet_state = as5600_data.magnet_state;
-                foc_motor->sensor_mech.speed = 0.0f;
-                foc_motor->sensor_mech.vaild = 0.0f;
-                __enable_irq();
-                return;
+                app_motor_last_status_tick_us = now;
+
+                if ((as5600_data.magnet_state == AS5600_MAGNET_NOT_DETECTED) ||
+                    (as5600_data.magnet_state == AS5600_MAGNET_TOO_STRONG))
+                {
+                    __disable_irq();
+                    foc_motor->sensor_mech.speed = 0.0f;
+                    foc_motor->sensor_mech.vaild = 0.0f;
+                    app_motor_speed_accum_delta_rad = 0.0f;
+                    app_motor_speed_accum_dt_s = 0.0f;
+                    __enable_irq();
+                    return;
+                }
             }
 
+            angle_rad = AS5600_RawToRad(raw_angle);
+
             __disable_irq();
-            app_motor_as5600_status = as5600_data.status;
-            app_motor_as5600_agc = as5600_data.agc;
-            app_motor_as5600_magnitude = as5600_data.magnitude;
-            app_motor_magnet_state = as5600_data.magnet_state;
             app_motor_last_angle_rad = angle_rad;
 
             if (foc_motor->sensor_mech.vaild != 0.0f)
             {
                 float delta = app_motor_wrap_delta_pm_pi(angle_rad - foc_motor->sensor_mech.angle);
-                float speed_raw = -FOC_MechRadPerSecToRpm(delta / dt);
-                app_motor_last_speed_rpm = foc_motor->sensor_mech.speed + APP_MOTOR_SPEED_LPF_ALPHA * (speed_raw - foc_motor->sensor_mech.speed);
+                float speed_abs = (app_motor_last_speed_rpm >= 0.0f) ? app_motor_last_speed_rpm : -app_motor_last_speed_rpm;
                 foc_motor->position_raw += delta;
+                app_motor_speed_accum_delta_rad += delta;
+                app_motor_speed_accum_dt_s += dt;
+
+                if (speed_abs >= APP_MOTOR_LOW_SPEED_RPM ||
+                    app_motor_speed_accum_dt_s >= APP_MOTOR_LOW_SPEED_MIN_DT_S)
+                {
+                    float speed_raw = -FOC_MechRadPerSecToRpm(app_motor_speed_accum_delta_rad / app_motor_speed_accum_dt_s);
+                    float alpha = app_motor_speed_accum_dt_s / (APP_MOTOR_SPEED_LPF_TAU_S + app_motor_speed_accum_dt_s);
+                    app_motor_last_speed_rpm += alpha * (speed_raw - app_motor_last_speed_rpm);
+                    app_motor_speed_accum_delta_rad = 0.0f;
+                    app_motor_speed_accum_dt_s = 0.0f;
+                }
             }
             else
             {
                 app_motor_last_speed_rpm = 0.0f;
+                app_motor_speed_accum_delta_rad = 0.0f;
+                app_motor_speed_accum_dt_s = 0.0f;
             }
 
             foc_motor->sensor_mech.angle = angle_rad;
@@ -129,9 +166,19 @@ void app_motor_get_telemetry(uint8_t motor_num, app_motor_telemetry_t *telemetry
 
 uint32_t App_GetMicroseconds(void)
 {
-   uint32_t ms = HAL_GetTick();
-   uint32_t ticks = SysTick->LOAD + 1 - SysTick->VAL;
-   return (ms * 1000 + (ticks * 1000) / SysTick->LOAD);
+   uint32_t ms1;
+   uint32_t ms2;
+   uint32_t val;
+   uint32_t load = SysTick->LOAD + 1U;
+
+   do
+   {
+       ms1 = HAL_GetTick();
+       val = SysTick->VAL;
+       ms2 = HAL_GetTick();
+   } while (ms1 != ms2);
+
+   return (ms1 * 1000U) + (((load - val) * 1000U) / load);
 }
 
 void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
